@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.ryanvanveen.followupboard'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.ryanvanveen.followupboard'
+        minSdk 26
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv("BUILD_NUMBER") ?: "1")
+        versionName "2.0." + (System.getenv("BUILD_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        // A fixed signing key, so each new build installs over the old one.
+        release {
+            storeFile file('followupboard.keystore')
+            storePassword 'followupboard'
+            keyAlias 'followupboard'
+            keyPassword 'followupboard'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.work:work-runtime:2.9.1'
+}

@@ -1,0 +1,1197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https:; img-src 'self' data:">
+<meta name="theme-color" content="#eef1f4">
+<title>Follow-Up Board</title>
+<style>
+/* Layout: sticky toolbar + summary, then a horizon board (5 columns) or a per-person 1:1 view. Cards read like shop work-order tags. */
+:root{
+  --bg:#eef1f4; --panel:#e3e8ee; --card:#ffffff; --line:#d3dae2; --ink:#18202a; --muted:#5d6977;
+  --accent:#1f5fbf; --accent-ink:#ffffff; --accent-soft:#dfe9f8;
+  --overdue:#c23a2b; --overdue-soft:#fbe5e1; --due:#a86400; --due-soft:#fdf0d8; --ok:#2f7d4f; --ok-soft:#e0f1e6;
+  --wip:#6a3fb5; --wip-soft:#ece4f8;
+  --glow-red:#e0301e; --glow-blue:#2a7de1; --nodate-soft:#e2eefc;
+  --p1:#c23a2b; --p2:#b56a00; --p3:#1f5fbf; --p4:#5d6977; --p5:#6a3fb5;
+  --tile-s:60%; --tile-l:94%; --tile-b:82%;
+  --chip-s:58%; --chip-l:42%; --chip-bg-l:92%;
+  --shadow:0 1px 2px rgba(20,30,45,.06),0 2px 8px rgba(20,30,45,.05);
+  --display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161c; --panel:#191f27; --card:#1f2630; --line:#2c3541; --ink:#e6ebf1; --muted:#95a1b0;
+  --accent:#6ea2f2; --accent-ink:#0d1420; --accent-soft:#1d2b42;
+  --overdue:#f0806f; --overdue-soft:#3a2120; --due:#e9b25a; --due-soft:#36291a; --ok:#6fcb93; --ok-soft:#1b3125;
+  --wip:#b79bf0; --wip-soft:#2c2342;
+  --glow-red:#ff5a45; --glow-blue:#5aa8ff; --nodate-soft:#1a2b45;
+  --p1:#f0806f; --p2:#e9b25a; --p3:#6ea2f2; --p4:#95a1b0; --p5:#b79bf0;
+  --tile-s:28%; --tile-l:17%; --tile-b:27%;
+  --chip-s:55%; --chip-l:72%; --chip-bg-l:20%;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161c; --panel:#191f27; --card:#1f2630; --line:#2c3541; --ink:#e6ebf1; --muted:#95a1b0;
+  --accent:#6ea2f2; --accent-ink:#0d1420; --accent-soft:#1d2b42;
+  --overdue:#f0806f; --overdue-soft:#3a2120; --due:#e9b25a; --due-soft:#36291a; --ok:#6fcb93; --ok-soft:#1b3125;
+  --wip:#b79bf0; --wip-soft:#2c2342;
+  --glow-red:#ff5a45; --glow-blue:#5aa8ff; --nodate-soft:#1a2b45;
+  --p1:#f0806f; --p2:#e9b25a; --p3:#6ea2f2; --p4:#95a1b0; --p5:#b79bf0;
+  --tile-s:28%; --tile-l:17%; --tile-b:27%;
+  --chip-s:55%; --chip-l:72%; --chip-bg-l:20%;
+  --shadow:0 1px 2px rgba(0,0,0,.3);
+  color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.4;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{padding-inline:20px;padding-block:16px 40px;max-width:1600px;margin:0 auto}
+@media (max-width:600px){.wrap{padding-inline:16px}}
+
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:14px}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0}
+.brand .date{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:6px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+
+.add{display:flex;gap:8px;flex:1 1 420px;min-width:0}
+.add input{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);border-radius:9px;padding:9px 12px}
+.add input::placeholder{color:var(--muted)}
+.add select{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:0 8px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 14px;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--overdue);border-color:var(--overdue)}
+.btn.danger.armed{background:var(--overdue);color:var(--card)}
+
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.stat{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px 5px 6px;font-weight:600}
+.stat b{font-family:var(--mono);font-size:12px;min-width:24px;text-align:center;border-radius:999px;padding:2px 6px}
+.stat.overdue b{background:var(--overdue-soft);color:var(--overdue)}
+.stat.today b{background:var(--due-soft);color:var(--due)}
+.stat.week b{background:var(--accent-soft);color:var(--accent)}
+.stat.wip b{background:var(--wip-soft);color:var(--wip)}
+.stat[aria-pressed="true"]{border-color:var(--ink)}
+
+.people{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px}
+.people .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-right:4px}
+.pchip{--h:210;display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:hsl(var(--h) var(--chip-s) var(--chip-bg-l));color:hsl(var(--h) var(--chip-s) var(--chip-l));border-radius:6px;padding:3px 8px;font-family:var(--mono);font-weight:600;font-size:12px}
+.pchip .n{opacity:.7;font-size:11px}
+.pchip[aria-pressed="true"]{border-color:currentColor}
+button.pchip{cursor:pointer}
+.clear{border:0;background:none;color:var(--accent);font-weight:600;font-size:13px}
+
+/* board */
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px;align-items:start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0;display:flex;flex-direction:column;gap:8px;min-height:160px}
+.tiles.masonry{display:flex;gap:12px;align-items:stretch}
+.mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:12px;min-height:160px;padding-bottom:48px;border-radius:12px}
+.mcol.ins-end{outline:2px dashed var(--accent);outline-offset:2px}
+.tiles .col[data-person-col]{position:relative}
+.tiles .col h2[data-grip]{cursor:grab}
+.ins-before::before,.ins-after::after{content:"";position:absolute;left:6px;right:6px;height:4px;border-radius:2px;background:var(--accent);pointer-events:none}
+.ins-before::before{top:-9px}.ins-after::after{bottom:-9px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px;align-items:start}
+.col.person{--h:210;background:hsl(var(--h) var(--tile-s) var(--tile-l));border-color:hsl(var(--h) var(--tile-s) var(--tile-b))}
+.col.person h2{border-bottom:2px solid hsl(var(--h) var(--chip-s) var(--chip-l) / .35);padding-bottom:8px}
+.col.group{border-width:2px;border-style:dashed}
+.col .gname{font-size:14px;font-weight:800;font-family:var(--display)}
+.col .gm{display:flex;gap:3px;flex-wrap:wrap}
+.col .gm .pchip{font-size:10.5px!important;padding:1px 5px!important}
+.col .gedit{border:1px solid var(--line);background:var(--card);border-radius:5px;font-size:11px;font-weight:700;padding:1px 7px;color:var(--muted)}
+.col .gedit:hover{color:var(--ink)}
+.hint .shared{border:0;background:none;padding:0;color:var(--muted);text-decoration:underline;font-size:12px}
+.newgroup{border:1px dashed var(--muted);background:none;border-radius:6px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--muted)}
+.gopts{margin-bottom:6px}
+.col.reorder{outline:3px solid var(--accent);outline-offset:2px}
+.col.lifting{opacity:.45}
+.grip{border:0;background:none;color:var(--muted);cursor:grab;font-size:16px;line-height:1;padding:2px 2px;letter-spacing:-2px}
+.mv{border:1px solid transparent;background:none;color:var(--muted);border-radius:5px;font-size:12px;padding:1px 5px}
+.mv:hover{border-color:var(--line);color:var(--ink)}
+.col h2 .tools{display:flex;align-items:center;gap:2px;margin-left:auto}
+.col.drop{outline:2px dashed var(--accent);outline-offset:-4px}
+.col h2{display:flex;align-items:center;justify-content:space-between;font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:2px 4px 4px}
+.col h2 .hd{display:flex;align-items:center;gap:8px;min-width:0;text-transform:none;letter-spacing:0}
+.col h2 .hd .pchip{font-size:13px;padding:3px 9px}
+.col h2 .nm{font-size:14px;font-weight:700}
+.col h2 .prio{font-size:12px;padding:3px 8px;text-transform:uppercase;letter-spacing:.06em}
+.prio{--pc:var(--muted);display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:5px;padding:2px 7px;background:color-mix(in srgb,var(--pc) 14%,transparent);color:var(--pc);white-space:nowrap}
+.prio i{width:7px;height:7px;border-radius:50%;background:var(--pc)}
+.p-immediate{--pc:var(--p1)}.p-short{--pc:var(--p2)}.p-medium{--pc:var(--p3)}.p-long{--pc:var(--p4)}.p-smt{--pc:var(--p5)}
+.col h2 .ct{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:600;letter-spacing:0}
+.col .hint{font-size:12px;color:var(--muted);margin:-4px 4px 2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:7px;cursor:grab;position:relative;text-align:left;width:100%}
+.card:hover{border-color:var(--muted)}
+.card.dragging{opacity:.4}
+.card.due{border-color:var(--glow-red);animation:glowRed 1.5s ease-in-out infinite}
+.card.nodate{border-color:color-mix(in srgb,var(--glow-blue) 70%,var(--line));animation:glowBlue 3.2s ease-in-out infinite}
+@keyframes glowRed{
+  0%,100%{box-shadow:0 0 0 1px var(--glow-red),0 0 4px 0 color-mix(in srgb,var(--glow-red) 30%,transparent)}
+  50%{box-shadow:0 0 0 2px var(--glow-red),0 0 18px 5px color-mix(in srgb,var(--glow-red) 55%,transparent)}}
+@keyframes glowBlue{
+  0%,100%{box-shadow:0 0 0 1px color-mix(in srgb,var(--glow-blue) 40%,transparent),0 0 2px 0 transparent}
+  50%{box-shadow:0 0 0 1px var(--glow-blue),0 0 14px 3px color-mix(in srgb,var(--glow-blue) 40%,transparent)}}
+@media (prefers-reduced-motion:reduce){
+  .card.due{animation:none;box-shadow:0 0 0 2px var(--glow-red),0 0 12px 2px color-mix(in srgb,var(--glow-red) 45%,transparent)}
+  .card.nodate{animation:none;box-shadow:0 0 0 1px var(--glow-blue),0 0 10px 1px color-mix(in srgb,var(--glow-blue) 30%,transparent)}}
+.act{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding-top:7px;border-top:1px dashed var(--line);cursor:default}
+.act .lbl{font-size:11.5px;font-weight:700;color:var(--muted);margin-right:2px}
+.card.due .act .lbl{color:var(--glow-red)}
+.card.nodate .act .lbl{color:var(--glow-blue)}
+.act button{border:1px solid var(--line);background:var(--bg);border-radius:6px;font-size:12px;font-weight:600;padding:4px 8px;min-height:30px}
+.act button:hover{border-color:var(--ink)}
+.act button.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ok);margin-left:auto}
+.act input[type=date]{border:1px solid var(--line);background:var(--bg);border-radius:6px;font-size:12px;padding:3px 6px;min-height:30px}
+.stat.nodate b{background:var(--nodate-soft);color:var(--glow-blue)}
+.syncpill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);border:1px solid var(--line);background:var(--card);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.syncpill i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.syncpill.ok i{background:var(--ok)}.syncpill.syncing i{background:var(--accent)}.syncpill.offline i{background:var(--due)}.syncpill.error i{background:var(--overdue)}
+.syncpill.error{color:var(--overdue);border-color:var(--overdue)}
+.iconbtn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:7px 11px;font-weight:600}
+.banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--overdue-soft);color:var(--overdue);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:600}
+.banner button{margin-left:auto}
+.timegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check-line{display:flex;gap:8px;align-items:center;font-weight:600}
+@media (max-width:600px){.summary{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.stat{flex:none}.add select{max-width:120px}}
+.check-line input{width:18px;height:18px}
+.card.is-overdue{}
+.card.is-today{}
+.card.done{opacity:.6}
+.card.done .title{text-decoration:line-through}
+.card .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.card .title{font-weight:600;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.card .notes{color:var(--muted);font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card .foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.check{appearance:none;width:18px;height:18px;border:1.5px solid var(--muted);border-radius:5px;margin:0;flex:none;cursor:pointer;display:grid;place-items:center;background:var(--card)}
+.check:checked{background:var(--ok);border-color:var(--ok)}
+.check:checked::after{content:"";width:5px;height:9px;border:solid var(--card);border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.pill{font-family:var(--mono);font-size:11px;font-weight:600;border-radius:5px;padding:2px 6px;white-space:nowrap}
+.pill.wip{background:var(--wip-soft);color:var(--wip)}
+.pill.waiting{background:var(--accent-soft);color:var(--accent)}
+.fu{font-family:var(--mono);font-size:11.5px;font-weight:600;border-radius:5px;padding:2px 7px;background:var(--panel);color:var(--muted);display:inline-flex;gap:4px;align-items:center}
+.fu.overdue{background:var(--overdue-soft);color:var(--overdue)}
+.fu.today{background:var(--due-soft);color:var(--due)}
+.fu.soon{background:var(--accent-soft);color:var(--accent)}
+.age{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
+.quick{display:flex;gap:4px;margin-left:auto}
+.quick button{border:1px solid var(--line);background:none;border-radius:5px;font-size:11px;padding:1px 6px;color:var(--muted);font-family:var(--mono)}
+.quick button:hover{color:var(--ink);border-color:var(--muted)}
+.donebar{border:0;background:none;color:var(--muted);font-size:12px;font-weight:600;text-align:left;padding:4px}
+.empty{color:var(--muted);font-size:13px;padding:8px 4px}
+
+/* people view */
+.pview{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.pcard header{display:flex;align-items:center;gap:10px}
+.pcard header .pchip{font-size:14px;padding:4px 10px}
+.pcard header .nm{font-weight:700}
+.pcard header .meta{margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.pcard .card{cursor:pointer}
+
+/* editor */
+.scrim{position:fixed;inset:0;background:rgba(10,15,22,.45);display:flex;justify-content:flex-end;z-index:20}
+.drawer{background:var(--card);width:min(460px,100%);height:100%;overflow-y:auto;padding:20px;padding-top:calc(20px + env(safe-area-inset-top,0px));padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;border-left:1px solid var(--line)}
+.drawer h3{margin:0;font-family:var(--display);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.field>.l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.field textarea,.field input,.field select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:9px 10px;width:100%}
+.field textarea{resize:vertical}
+#e-title{font-size:16px;font-weight:600;min-height:64px}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opt{border:1px solid var(--line);background:var(--bg);border-radius:7px;padding:5px 10px;font-weight:600;font-size:13px}
+.opt[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.drawer .pchip{cursor:pointer;opacity:.55}
+.drawer .pchip[aria-pressed="true"]{opacity:1}
+.newp{display:flex;gap:6px}
+.newp input{width:90px!important;font-family:var(--mono)}
+.dline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dline input{width:auto!important;flex:0 0 auto}
+.actions{display:flex;gap:8px;margin-top:auto;padding-top:8px;flex-wrap:wrap}
+.actions .sp{flex:1}
+.meta-line{font-family:var(--mono);font-size:11.5px;color:var(--muted);white-space:pre-wrap}
+
+.note{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-weight:600;font-size:13px;z-index:30}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .12s,opacity .12s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Follow-Up Board</h1><span class="date" id="today"></span></div>
+    <div class="seg" role="group" aria-label="View">
+      <button id="v-people" aria-pressed="true">By person</button>
+      <button id="v-board" aria-pressed="false">By priority</button>
+    </div>
+    <span class="syncpill" id="syncpill" title="Sync status"><i></i><span>Starting…</span></span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="iconbtn" id="settings-btn" type="button" title="Settings" aria-label="Settings">⚙</button><button class="btn" id="import-btn" type="button" title="Paste items someone sent you">⇩ Import</button><button class="btn" id="send-all" type="button" title="Send all tiles">✉ Send board</button></div>
+  </header>
+
+  <form class="add" id="addform" autocomplete="off">
+    <input id="add-input" placeholder="MtH - Shear payback period   (initials or group, dash, item)" aria-label="New item">
+    <select id="add-col" aria-label="Priority"></select>
+    <button class="btn primary" type="submit">Add</button>
+  </form>
+  <p class="note" id="status" style="margin-top:8px">Type initials, a dash, then the item. Red glow means it's time to follow up; blue means it still needs a date.</p>
+
+  <div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn" id="banner-fix" type="button">Open settings</button></div>
+  <div class="summary" id="summary"></div>
+  <div class="people" id="peoplebar"></div>
+  <main id="main"></main>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="e-head">
+    <h3 id="e-head">Edit item</h3>
+    <div class="field"><label for="e-title">Item</label><textarea id="e-title" rows="2"></textarea></div>
+    <div class="field"><span class="l">Who</span><div class="opts" id="e-people"></div>
+      <div class="newp"><input id="e-newp" placeholder="Initials" maxlength="6" aria-label="Add person initials"><button class="btn" id="e-addp" type="button">Add person</button></div></div>
+    <div class="field"><span class="l">Follow up</span>
+      <div class="dline"><input type="date" id="e-fu" aria-label="Follow-up date">
+        <div class="opts" id="e-fuq"></div></div></div>
+    <div class="field"><span class="l">Status</span><div class="opts" id="e-status"></div></div>
+    <div class="field"><span class="l">Priority</span><div class="opts" id="e-col"></div></div>
+    <div class="field"><label for="e-notes">Notes</label><textarea id="e-notes" rows="5" placeholder="Context, what was agreed, next step…"></textarea></div>
+    <div class="meta-line" id="e-meta"></div>
+    <div class="actions">
+      <button class="btn danger" id="e-del" type="button">Delete</button>
+      <span class="sp"></span>
+      <button class="btn" id="e-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="e-save" type="button">Save</button>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="gscrim" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="g-head">
+    <h3 id="g-head">Group</h3>
+    <div class="field"><label for="g-name">Group name</label><input id="g-name" placeholder="Logistics"></div>
+    <div class="field"><span class="l">Members</span><div class="opts" id="g-members"></div></div>
+    <p class="meta-line" id="g-meta">Items assigned to exactly these people show up in this group's tile. Type the group name before a dash to add to it, like “Logistics - Review carrier rates”.</p>
+    <div class="actions">
+      <button class="btn danger" id="g-del" type="button">Remove group</button>
+      <span class="sp"></span>
+      <button class="btn" id="g-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="g-save" type="button">Save</button>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="sscrim" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="s-head">
+    <h3 id="s-head">Send</h3>
+    <div class="field"><label for="s-to">To (email)</label><input id="s-to" type="email" placeholder="name@walinga.com" autocomplete="email"></div>
+    <div class="field"><span class="l">Include</span><div class="opts" id="s-opts">
+      <button type="button" class="opt" data-sopt="notes" aria-pressed="true">Notes</button>
+      <button type="button" class="opt" data-sopt="done" aria-pressed="false">Done items</button>
+    </div></div>
+    <div class="field"><label for="s-text">Message</label><textarea id="s-text" rows="14"></textarea></div>
+    <p class="meta-line">“Open in email” starts a message in your email app. If nothing opens, copy the text and paste it into an email or chat.</p>
+    <div class="actions">
+      <button class="btn" id="s-cancel" type="button">Close</button>
+      <span class="sp"></span>
+      <button class="btn" id="s-copy" type="button">Copy text</button>
+      <a class="btn primary" id="s-mail" href="#" target="_blank" rel="noopener" style="text-decoration:none">Open in email</a>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="iscrim" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="i-head">
+    <h3 id="i-head">Import items</h3>
+    <div class="field"><label for="i-text">Paste the text you received</label>
+      <textarea id="i-text" rows="12" placeholder="Paste a tile or board someone sent you from their Follow-Up Board.&#10;&#10;You can also paste a plain list, one item per line:&#10;MtH - Shear payback period&#10;DS/JMB - Logistics review"></textarea></div>
+    <div class="field"><span class="l">Or bring in a whole board file</span>
+      <div class="dline"><input type="file" id="i-file" accept=".json,application/json" aria-label="Board file"><button class="btn" id="i-legacy" type="button" hidden>Copy the board saved on this PC</button></div>
+      <div class="meta-line">A board.json from the earlier desktop app (in %APPDATA%\Follow-Up Board).</div></div>
+    <div class="field"><span class="l">Preview</span><div id="i-preview" class="meta-line">Nothing pasted yet.</div></div>
+    <div class="actions">
+      <button class="btn" id="i-cancel" type="button">Cancel</button>
+      <span class="sp"></span>
+      <button class="btn primary" id="i-go" type="button" disabled>Add items</button>
+    </div>
+  </aside>
+</div>
+<div class="scrim" id="setscrim" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="set-head">
+    <h3 id="set-head">Settings</h3>
+    <p class="note" id="set-intro" hidden>Connect this app to your Google Sheet. You'll find both values in the sheet under <b>Follow-Up Board &gt; Show connection details</b>.</p>
+    <div class="field"><label for="set-url">Web app URL (ends in /exec)</label><input id="set-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label for="set-key">Access key</label><input id="set-key" type="text" placeholder="40 letters and numbers" autocomplete="off" spellcheck="false"></div>
+    <div class="meta-line" id="set-conn-msg"></div>
+    <div id="set-notify">
+      <h3 style="margin:10px 0 8px">Notifications</h3>
+      <label class="check-line"><input type="checkbox" id="set-on"> Notify me Monday to Friday</label>
+      <div class="timegrid" style="margin-top:10px">
+        <div class="field"><label for="set-morning">Morning check</label><input type="time" id="set-morning" value="08:00"></div>
+        <div class="field"><label for="set-rem">Reminder if still due</label><input type="time" id="set-rem" value="13:00"></div>
+      </div>
+      <p class="meta-line" id="set-notify-note"></p>
+      <button class="btn" id="set-test" type="button">Send a test notification</button>
+    </div>
+    <div class="actions">
+      <button class="btn" id="set-cancel" type="button">Cancel</button>
+      <span class="sp"></span>
+      <button class="btn primary" id="set-save" type="button">Save</button>
+    </div>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ===== Sync layer: keeps the board in step with the Google Sheet =====
+// Same small API the board already uses (collections, docs, onSnapshot).
+(function(){
+  const LS=k=>{try{return localStorage.getItem(k)}catch(_){return null}};
+  const LSset=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(_){}};
+  const platform=window.AndroidBridge?"android":(window.desktop?"desktop":"web");
+
+  // ---- transport (native where available, so there are no cross-site limits) ----
+  const pend={}; let seq=0;
+  window.__nativeHttpDone=(id,status,text)=>{const p=pend[id];if(p){delete pend[id];p({status,text})}};
+  function http(method,url,body){
+    if(window.AndroidBridge) return new Promise(res=>{const id="r"+(++seq);pend[id]=res;window.AndroidBridge.http(id,method,url,body||"")});
+    if(window.desktop&&window.desktop.http) return window.desktop.http(method,url,body||null);
+    return fetch(url,{method,body:body||undefined,headers:body?{"Content-Type":"text/plain;charset=utf-8"}:undefined,redirect:"follow"})
+      .then(async r=>({status:r.status,text:await r.text()}),()=>({status:0,text:""}));
+  }
+
+  // ---- connection settings ----
+  function readConn(){
+    if(window.AndroidBridge){try{const c=JSON.parse(window.AndroidBridge.getConfig()||"{}");if(c.url)return{url:c.url,key:c.key}}catch(_){}}
+    try{return JSON.parse(LS("fub.conn")||"null")}catch(_){return null}
+  }
+  let conn=readConn();
+
+  async function call(params,body){
+    if(!conn||!conn.url)throw{code:"no_conn"};
+    let url=conn.url+(conn.url.includes("?")?"&":"?")+"key="+encodeURIComponent(conn.key||"");
+    for(const [k,v] of Object.entries(params||{})) url+="&"+k+"="+encodeURIComponent(v);
+    const r=await http(body?"POST":"GET",url,body?JSON.stringify(body):null);
+    if(!r||!r.status) throw{code:"offline"};
+    let j=null; try{j=JSON.parse(r.text)}catch(_){}
+    if(!j){ throw{code:/accounts\.google|ServiceLogin|<html/i.test(r.text||"")?"not_public":"bad_response",status:r.status} }
+    if(!j.ok) throw{code:j.error||"error"};
+    return j;
+  }
+
+  // ---- local state ----
+  let state={tasks:{},people:{},groups:{},settings:{}};
+  try{const c=JSON.parse(LS("fub.cache")||"null");if(c&&c.state)state=c.state}catch(_){}
+  let rev=Number(LS("fub.rev")||0);
+  let queue=[]; try{queue=JSON.parse(LS("fub.queue")||"[]")}catch(_){}
+  const saveLocal=()=>{LSset("fub.cache",JSON.stringify({state}));LSset("fub.queue",JSON.stringify(queue));LSset("fub.rev",String(rev))};
+
+  function fromServer(d){
+    const s={tasks:{},people:{},groups:{},settings:{}};
+    for(const t of d.tasks||[]){const {id,...rest}=t;s.tasks[id]=rest}
+    for(const p of d.people||[]) s.people[p.initials]={initials:p.initials,name:p.name||""};
+    for(const g of d.groups||[]) s.groups[g.id]={name:g.name,members:g.members||[]};
+    let layout=null; try{layout=d.settings&&d.settings.layout?JSON.parse(d.settings.layout):null}catch(_){}
+    if(layout) s.settings.layout=layout;
+    return s;
+  }
+  function toOp(col,id,data){
+    if(col==="tasks") return data?{op:"setTask",task:{id,...data}}:{op:"deleteTask",id};
+    if(col==="people") return data?{op:"setPerson",person:{initials:id,name:data.name||""}}:{op:"deletePerson",initials:id};
+    if(col==="groups") return data?{op:"setGroup",group:{id,name:data.name,members:data.members}}:{op:"deleteGroup",id};
+    if(col==="settings") return {op:"setSetting",key:id,value:JSON.stringify(data||{})};
+  }
+
+  // ---- status shown in the header ----
+  const sync={state:"idle",msg:"",last:null,platform};
+  const statusFns=new Set();
+  function setStatus(s,msg){sync.state=s;sync.msg=msg||"";if(s==="ok")sync.last=new Date();statusFns.forEach(f=>{try{f(sync,queue.length)}catch(_){}})}
+  const ERR={bad_key:"The access key doesn't match. Check it in Settings.",not_public:"The sheet's web app isn't shared as “Anyone”. Check the deployment.",offline:"Offline. Changes are saved here and will sync.",no_conn:"Not connected to a sheet yet.",bad_response:"The web app URL didn't answer like the board's script. Check it in Settings.",unknown_action:"The sheet's script is out of date. Paste the latest Code.gs and redeploy."};
+
+  // ---- listeners ----
+  const listeners=new Set();
+  const notify=col=>{for(const l of [...listeners]) if(!col||l.col===col) l.fire()};
+  const snap=(id,d)=>({id,exists:d!==undefined,data:()=>d,metadata:{fromCache:false,hasPendingWrites:false}});
+  const sub=(col,fire)=>{const l={col,fire};listeners.add(l);setTimeout(()=>listeners.has(l)&&fire(),0);return()=>listeners.delete(l)};
+  const clone=o=>JSON.parse(JSON.stringify(o));
+
+  // ---- syncing ----
+  let flushing=false, flushAgain=false;
+  async function flush(){
+    if(flushing){flushAgain=true;return}
+    if(!queue.length||!conn)return;
+    flushing=true; setStatus("syncing");
+    try{
+      const batch=queue.slice(0,200);
+      const j=await call({action:"ops"},{action:"ops",key:conn.key,ops:batch});
+      queue=queue.slice(batch.length); rev=j.rev; saveLocal(); setStatus(queue.length?"syncing":"ok");
+    }catch(e){ setStatus(e.code==="offline"?"offline":"error",ERR[e.code]||("Sync problem: "+(e.code||"unknown"))) }
+    flushing=false;
+    if(flushAgain||queue.length){flushAgain=false;if(sync.state!=="offline"&&sync.state!=="error")setTimeout(flush,50)}
+  }
+  async function pull(force){
+    if(!conn)return;
+    if(queue.length){await flush(); if(queue.length)return}
+    try{
+      if(!force){const r=await call({action:"rev"}); if(r.rev===rev){setStatus("ok");return}}
+      const j=await call({action:"data"});
+      if(queue.length)return; // a change was made while loading; keep it
+      state=fromServer(j.data); rev=j.rev; saveLocal(); notify(); setStatus("ok");
+    }catch(e){ setStatus(e.code==="offline"?"offline":"error",ERR[e.code]||("Sync problem: "+(e.code||"unknown"))) }
+  }
+  function write(col,id,data){
+    const b=state[col]||(state[col]={});
+    if(data===undefined) delete b[id]; else b[id]=clone(data);
+    const op=toOp(col,id,data);
+    // collapse repeated edits to the same item
+    queue=queue.filter(q=>!(q.op===op.op&&((q.task&&op.task&&q.task.id===op.task.id)||(q.key&&q.key===op.key)||(q.group&&op.group&&q.group.id===op.group.id)||(q.person&&op.person&&q.person.initials===op.person.initials))));
+    queue.push(op); saveLocal(); notify(col);
+    clearTimeout(write.t); write.t=setTimeout(flush,300);
+  }
+
+  function docRef(col,id){
+    return {id,path:col+"/"+id,
+      get:async()=>snap(id,(state[col]||{})[id]),
+      set:async d=>write(col,id,d),
+      update:async d=>write(col,id,{...((state[col]||{})[id]||{}),...d}),
+      delete:async()=>write(col,id,undefined),
+      onSnapshot:next=>sub(col,()=>next(snap(id,(state[col]||{})[id])))};
+  }
+  function colRef(col){
+    const q=()=>{const docs=Object.entries(state[col]||{}).map(([id,d])=>snap(id,d));return{docs,size:docs.length,empty:!docs.length,docChanges:()=>[],metadata:{}}};
+    return {path:col,doc:id=>docRef(col,id||("d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6))),get:async()=>q(),onSnapshot:next=>sub(col,()=>next(q()))};
+  }
+  const db={collection:colRef,doc:p=>{const [c,id]=p.split("/");return docRef(c,id)}};
+  window.claude={use:async n=>n==="db"?db:null};
+
+  // ---- public helpers for the settings screen ----
+  window.fubSync={
+    platform,
+    get conn(){return conn},
+    get pending(){return queue.length},
+    onStatus(f){statusFns.add(f);f(sync,queue.length)},
+    async test(url,key){
+      const save=conn; conn={url,key};
+      try{await call({action:"rev"});return{ok:true}}catch(e){return{ok:false,msg:ERR[e.code]||("Couldn't connect: "+(e.code||"unknown"))}}
+      finally{conn=save}
+    },
+    async connect(url,key){
+      const changed=!conn||conn.url!==url||conn.key!==key;
+      conn={url,key}; LSset("fub.conn",JSON.stringify(conn));
+      if(window.AndroidBridge){try{window.AndroidBridge.saveConfig(JSON.stringify({url,key}))}catch(_){}}
+      if(changed){rev=-1;}
+      await pull(true);
+    },
+    pull:()=>pull(false),
+    refresh:()=>pull(true),
+    sendOps(ops){queue.push(...ops);saveLocal();return flush()},
+    state:()=>state
+  };
+
+  // keep up to date: on start, every 20 s while visible, and when the app comes back
+  setTimeout(()=>{ if(conn){ setStatus("syncing"); queue.length?flush().then(()=>pull(false)):pull(rev<=0) } else setStatus("idle",ERR.no_conn) },0);
+  setInterval(()=>{if(document.visibilityState==="visible")pull(false)},20000);
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull(false)});
+  window.addEventListener("online",()=>{flush().then(()=>pull(false))});
+})();
+</script>
+<script>
+(function(){
+const COLS=[
+  {id:"immediate",name:"Immediate",hint:"Today / this week"},
+  {id:"short",name:"Short Term",hint:"Next few weeks"},
+  {id:"medium",name:"Medium Term",hint:"This quarter"},
+  {id:"long",name:"Long Term",hint:"Someday / big projects"},
+  {id:"smt",name:"Report to SMT",hint:"Bring to senior management"}
+];
+const STATUS=[{id:"queued",name:"Queued"},{id:"wip",name:"In progress"},{id:"waiting",name:"Waiting on them"},{id:"done",name:"Done"}];
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// --- dates (local) ---
+const pad=n=>String(n).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)};
+const nextWeekday=(from,wd)=>{const d=parse(from);let k=(wd-d.getDay()+7)%7||7;d.setDate(d.getDate()+k);return ymd(d)};
+const diffDays=(a,b)=>Math.round((parse(a)-parse(b))/864e5);
+let TODAY=ymd(new Date());
+const DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const nice=s=>{const d=parse(s);return DOW[d.getDay()]+" "+MON[d.getMonth()]+" "+d.getDate()};
+function fuInfo(t){
+  if(!t.followUp||t.status==="done")return null;
+  const n=diffDays(t.followUp,TODAY);
+  if(n<0)return{cls:"overdue",txt:(-n)+"d overdue",n};
+  if(n===0)return{cls:"today",txt:"Today",n};
+  if(n===1)return{cls:"soon",txt:"Tomorrow",n};
+  if(n<=7)return{cls:"soon",txt:nice(t.followUp),n};
+  return{cls:"",txt:nice(t.followUp),n};
+}
+const hue=s=>{let h=0;for(const c of String(s).toUpperCase())h=(h*31+c.charCodeAt(0))%360;return h};
+const chip=(p,extra="")=>`<span class="pchip" style="--h:${hue(p)}" ${extra}>${esc(p)}</span>`;
+
+// --- state ---
+let tasks=new Map(), peopleDocs=new Map();
+let tileMap=new Map();
+let order=[], shownKeys=[], allKeys=[], layoutDoc=null, groupsCol=null, groupDocs=new Map();
+const mkey=a=>[...(a||[])].sort((x,y)=>x.localeCompare(y)).join("+");
+const groupFor=k=>{for(const [id,g] of groupDocs) if(mkey(g.members)===k) return {id,...g}; return null};
+let view="people", personFilter=null, statFilter=null, showDone=new Set();
+let db=null, tasksCol=null, peopleCol=null, canWrite=true;
+try{const v=localStorage.getItem("fub.view");if(v==="people"||v==="board")view=v}catch(e){}
+
+$("#today").textContent=nice(TODAY)+", "+parse(TODAY).getFullYear();
+$("#add-col").innerHTML=COLS.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+
+function allPeople(){
+  const s=new Map();
+  for(const [id,p] of peopleDocs) s.set(p.initials||id,{initials:p.initials||id,name:p.name||""});
+  for(const t of tasks.values()) for(const p of (t.people||[])) if(!s.has(p)) s.set(p,{initials:p,name:""});
+  return [...s.values()].sort((a,b)=>a.initials.localeCompare(b.initials));
+}
+const openTasks=()=>[...tasks.values()].filter(t=>t.status!=="done");
+
+function matches(t){
+  if(personFilter && !(t.people||[]).includes(personFilter)) return false;
+  if(statFilter){
+    const f=fuInfo(t);
+    if(statFilter==="overdue") return f&&f.n<0;
+    if(statFilter==="today") return f&&f.n===0;
+    if(statFilter==="week") return f&&f.n>=0&&f.n<=7;
+    if(statFilter==="wip") return t.status==="wip";
+    if(statFilter==="nodate") return t.status!=="done"&&!t.followUp;
+  }
+  return true;
+}
+const rank=t=>({wip:0,waiting:1,queued:2,done:3}[t.status]??2);
+const pr=t=>COLS.findIndex(c=>c.id===(t.col||"immediate"));
+function sortTasks(a,b){
+  if(pr(a)!==pr(b))return pr(a)-pr(b);
+  if(rank(a)!==rank(b))return rank(a)-rank(b);
+  const fa=a.followUp||"9999",fb=b.followUp||"9999";
+  if(fa!==fb)return fa<fb?-1:1;
+  return (a.created||"").localeCompare(b.created||"");
+}
+
+// --- render ---
+const SHORT={immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"SMT report"};
+const prioBadge=t=>{const c=t.col||"immediate";return `<span class="prio p-${c}" title="Priority: ${esc(SHORT[c])}"><i></i>${esc(SHORT[c])}</span>`};
+function cardHTML(t,opts={}){
+  const f=fuInfo(t);
+  const isDue=f&&f.n<=0, noDate=t.status!=="done"&&!t.followUp;
+  const cls=["card",t.status==="done"?"done":"",isDue?"due":"",noDate?"nodate":""].join(" ");
+  const st=t.status==="wip"?'<span class="pill wip">WIP</span>':t.status==="waiting"?'<span class="pill waiting">WAITING</span>':"";
+  const age=t.created?diffDays(TODAY,t.created.slice(0,10)):0;
+  const fu=f?`<span class="fu ${f.cls}" title="Follow up ${esc(nice(t.followUp))}">↻ ${esc(f.txt)}</span>`:(t.status!=="done"?'<span class="fu" title="No follow-up date">↻ —</span>':"");
+  const quick=`<span class="age" title="Days on the list">${age>0?age+"d":"new"}</span>`;
+  const nb=(v,l,ttl)=>`<button type="button" data-next="${v}" title="${ttl}">${l}</button>`;
+  const act=isDue?`<div class="act"><span class="lbl">Followed up? Next:</span>${nb("1","Tomorrow","Follow up again tomorrow")}${nb("mon","Mon","Follow up again next Monday")}${nb("7","+1 wk","Follow up again in a week")}${nb("pick","📅","Pick a date")}<button type="button" class="ok" data-actdone title="Mark done">✓ Done</button></div>`
+    :noDate?`<div class="act"><span class="lbl">Set follow-up:</span>${nb("1","Tomorrow","Follow up tomorrow")}${nb("fri","Fri","Follow up Friday")}${nb("7","+1 wk","Follow up in a week")}${nb("pick","📅","Pick a date")}</div>`:"";
+  return `<div class="${cls}" data-id="${esc(t.id)}" draggable="${opts.drag?"true":"false"}" tabindex="0" role="button" aria-label="Edit: ${esc(t.title)}">
+    <div class="row"><input type="checkbox" class="check" data-done ${t.status==="done"?"checked":""} aria-label="Mark done">${opts.showPrio?prioBadge(t):""}${opts.showPeople?(t.people||[]).map(p=>chip(p)).join(""):""}${st}</div>
+    <div class="title">${esc(t.title)}</div>
+    ${t.notes?`<div class="notes">${esc(t.notes)}</div>`:""}
+    <div class="foot">${fu}${quick}</div>
+    ${act}
+  </div>`;
+}
+
+function render(){
+  TODAY=ymd(new Date());
+  // summary
+  const o=openTasks();
+  const cnt=k=>o.filter(t=>{const f=fuInfo(t);return k==="overdue"?f&&f.n<0:k==="today"?f&&f.n===0:k==="week"?f&&f.n>=0&&f.n<=7:k==="nodate"?!t.followUp:t.status==="wip"}).length;
+  $("#summary").innerHTML=[["overdue","Overdue follow-ups"],["today","Follow up today"],["nodate","No date set"],["week","Next 7 days"],["wip","In progress"]]
+    .map(([k,l])=>`<button class="stat ${k}" data-stat="${k}" aria-pressed="${statFilter===k}"><b>${cnt(k)}</b>${l}</button>`).join("");
+  // people bar
+  const ppl=allPeople();
+  $("#peoplebar").innerHTML=`<span class="lbl">Who</span>`+ppl.map(p=>{
+    const n=o.filter(t=>(t.people||[]).includes(p.initials)).length;
+    return `<button class="pchip" style="--h:${hue(p.initials)}" data-person="${esc(p.initials)}" aria-pressed="${personFilter===p.initials}" title="${esc(p.name||p.initials)}">${esc(p.initials)}<span class="n">${n}</span></button>`;
+  }).join("")+`<button class="newgroup" data-newgroup>+ Group</button>`+((personFilter||statFilter)?`<button class="clear" data-clear>Clear filters</button>`:"");
+  $("#v-board").setAttribute("aria-pressed",view==="board");
+  $("#v-people").setAttribute("aria-pressed",view==="people");
+  const main=$("#main");
+  let groups;
+  if(view==="people"){
+    const sharedKeys=new Set([...groupDocs.values()].map(g=>mkey(g.members)).filter(k=>k.includes("+")));
+    for(const t of tasks.values()) if((t.people||[]).length>1) sharedKeys.add(mkey(t.people));
+    groups=ppl.filter(p=>!personFilter||p.initials===personFilter).map(p=>{
+      const all=[...tasks.values()].filter(t=>(t.people||[]).length===1&&t.people[0]===p.initials&&matches(t));
+      const od=all.filter(t=>{const f=fuInfo(t);return f&&f.n<=0}).length;
+      const sh=openTasks().filter(t=>(t.people||[]).length>1&&t.people.includes(p.initials)).length;
+      const hint=[od?`<span class="fu today">${od} to follow up</span>`:"",sh?`<button class="shared" data-person="${esc(p.initials)}" title="Show ${esc(p.initials)} with their groups">+${sh} in groups</button>`:""].filter(Boolean).join(" ");
+      return {key:"p:"+p.initials,pk:p.initials,title:p.name?p.initials+" ("+p.name+")":p.initials,members:[p.initials],cls:"person",style:`--h:${hue(p.initials)}`,head:chip(p.initials)+(p.name?`<span class="nm">${esc(p.name)}</span>`:""),hint,all,od,keep:!!personFilter};
+    });
+    for(const k of sharedKeys){
+      const members=k.split("+"); if(personFilter&&!members.includes(personFilter)) continue;
+      const g=groupFor(k);
+      const all=[...tasks.values()].filter(t=>(t.people||[]).length>1&&mkey(t.people)===k&&matches(t));
+      groups.push({key:"g:"+k,pk:"g:"+k,title:g?g.name+" ("+members.join(", ")+")":members.join(" + "),members,cls:"person group",style:`--h:${hue(g?g.name:k)}`,
+        head:`<span class="gname">${esc(g?g.name:members.join(" + "))}</span>${g?`<span class="gm">${members.map(m=>chip(m)).join("")}</span>`:""}<button class="gedit" data-editgroup="${esc(k)}" title="${g?"Edit group":"Name this group"}">${g?"Edit":"Name"}</button>`,
+        hint:"",all,keep:!!g});
+    }
+    if(!personFilter) groups.push({key:"p:",pk:"",title:"My own items",members:[],cls:"",head:`<span class="nm">Me / unassigned</span>`,hint:"",all:[...tasks.values()].filter(t=>!(t.people||[]).length&&matches(t)),keep:true});
+    groups=groups.filter(g=>g.keep||g.all.some(t=>t.status!=="done"));
+    tileMap=new Map(groups.map(g=>[g.pk,{title:g.title,all:g.all}]));
+    allKeys=groups.map(g=>g.pk);
+    const ord=fullOrder(); groups.sort((a,b)=>ord.indexOf(a.pk)-ord.indexOf(b.pk));
+    shownKeys=groups.map(g=>g.pk);
+  }else{
+    groups=COLS.map(c=>({key:"c:"+c.id,attr:`data-col="${c.id}"`,head:`<span class="prio p-${c.id}"><i></i>${c.name}</span>`,hint:c.hint,all:[...tasks.values()].filter(t=>(t.col||"immediate")===c.id&&matches(t))}));
+  }
+  const tiles=view==="people";
+  main.innerHTML=`<div class="${tiles?"tiles":"board"}">`+groups.map((g,i)=>{
+    const open=g.all.filter(t=>t.status!=="done").sort(sortTasks);
+    const done=g.all.filter(t=>t.status==="done").sort((a,b)=>(b.completedAt||"").localeCompare(a.completedAt||""));
+    const sd=showDone.has(g.key);
+    const mvb=(d,ic,l)=>`<button class="mv" data-mv="${d}" data-pk="${esc(g.pk)}" title="${l}" aria-label="${l}">${ic}</button>`;
+    const tools=tiles?`<span class="tools">${mvb("left","◀","Move to the column on the left")}${mvb("up","▲","Move up")}${mvb("down","▼","Move down")}${mvb("right","▶","Move to the column on the right")}<button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
+    const attr=tiles?`data-person-col="${esc(g.pk)}" data-members="${esc((g.members||[]).join(","))}"`:g.attr;
+    return `<section class="col ${g.cls||""}" style="${g.style||""}" ${attr}>
+      <h2 ${tiles?`draggable="true" data-grip="${esc(g.pk)}" title="Drag to move this tile"`:""}><span class="hd">${g.head}<span class="ct">${open.length}</span></span>${tools}</h2>
+      ${g.hint?`<div class="hint">${g.hint}</div>`:""}
+      ${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||'<div class="empty">Nothing open. Drag a card here or add one above.</div>'}
+      ${done.length?`<button class="donebar" data-showdone="${esc(g.key)}">${sd?"▾":"▸"} Done (${done.length})</button>${sd?done.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:true})).join(""):""}`:""}
+    </section>`;
+  }).join("")+`</div>`+(groups.length?"":'<div class="empty">No items match.</div>');
+  if(tiles) packTiles();
+}
+// Tiles live in columns you arrange. Anything not placed yet drops into the shortest column.
+let layoutCols=null, packedCols=0;
+const colCount=w=>Math.max(1,Math.floor((w+12)/(300+12)));
+function packTiles(){
+  const wrap=document.querySelector("#main .tiles"); if(!wrap)return;
+  const list=[...wrap.children]; const byKey=new Map(list.map(t=>[t.dataset.personCol,t]));
+  const n=colCount(wrap.clientWidth); packedCols=n;
+  wrap.classList.add("masonry");
+  const cols=Array.from({length:n},(_,i)=>{const c=document.createElement("div");c.className="mcol";c.dataset.ci=i;wrap.appendChild(c);return c});
+  if(layoutCols) layoutCols.forEach((col,i)=>{const tgt=cols[i%n];for(const k of col){const t=byKey.get(k);if(t){tgt.appendChild(t);byKey.delete(k)}}});
+  const fill=c=>[...c.children].reduce((h,x)=>h+x.offsetHeight+12,0);
+  for(const t of byKey.values()){let best=cols[0];for(const c of cols) if(fill(c)<fill(best)-1) best=c; best.appendChild(t)}
+}
+function currentCols(){
+  const d=[...document.querySelectorAll("#main .mcol")].map(c=>[...c.children].map(x=>x.dataset.personCol).filter(x=>x!==undefined));
+  if(!d.length)return [[]];
+  if(layoutCols){const shown=new Set(d.flat());layoutCols.forEach((col,i)=>col.forEach(k=>{if(!shown.has(k)){shown.add(k);d[Math.min(i,d.length-1)].push(k)}}))}
+  return d;
+}
+async function saveLayout(cols){
+  while(cols.length>1&&!cols[cols.length-1].length) cols.pop();
+  layoutCols=cols; render();
+  if(layoutDoc) try{await layoutDoc.set({cols:cols.map(k=>({k}))})}catch(e){toast("Couldn't save the layout.")}
+}
+function placeTile(key,ci,beforeKey){
+  const cols=currentCols().map(c=>c.filter(k=>k!==key));
+  while(cols.length<=ci) cols.push([]);
+  const c=cols[ci], i=beforeKey!=null?c.indexOf(beforeKey):-1;
+  i<0?c.push(key):c.splice(i,0,key);
+  saveLayout(cols);
+}
+function nudgeTile(key,dir){
+  const cols=currentCols(); const ci=cols.findIndex(c=>c.includes(key)); if(ci<0)return;
+  const idx=cols[ci].indexOf(key), n=Math.max(packedCols,1);
+  if(dir==="up"){if(idx>0)placeTile(key,ci,cols[ci][idx-1]);return}
+  if(dir==="down"){if(idx<cols[ci].length-1)placeTile(key,ci,cols[ci][idx+2]??null);return}
+  const nc=ci+(dir==="left"?-1:1); if(nc<0||nc>=n)return;
+  const rest=(cols[nc]||[]); placeTile(key,nc,rest[idx]??null);
+}
+let rsz;window.addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(()=>{if(view!=="people")return;const w=document.querySelector("#main .tiles");if(!w)return;if(colCount(w.clientWidth)!==packedCols)render()},120)});
+
+// --- persistence ---
+const now=()=>new Date().toISOString();
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200)}
+async function saveTask(t){
+  tasks.set(t.id,t); render();
+  if(!tasksCol)return;
+  const {id,...body}=t;
+  try{await tasksCol.doc(id).set(body)}catch(e){toast(e&&e.code==="invalid_argument"?"You can view this board but not change it.":"Couldn't save. Check your connection and try again.")}
+}
+async function deleteTask(id){
+  tasks.delete(id); render();
+  if(tasksCol) try{await tasksCol.doc(id).delete()}catch(e){toast("Couldn't delete. Try again.")}
+}
+async function ensurePerson(ini){
+  if(peopleDocs.has(ini)||!peopleCol)return;
+  peopleDocs.set(ini,{initials:ini,name:""});
+  try{await peopleCol.doc(ini).set({initials:ini,name:""})}catch(e){}
+}
+const newId=()=>"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+// --- quick add: "MtH - item", "DJS/MtH - item", "@NL item" ---
+function parseAdd(s){
+  s=s.trim(); let people=[],title=s,m;
+  const known=allPeople().map(p=>p.initials);
+  const norm=x=>known.find(k=>k.toLowerCase()===x.toLowerCase())||x;
+  if((m=s.match(/^([^\n]{1,40}?)\s*[-–—:]\s*(.+)$/s))){
+    const toks=m[1].split("/").map(x=>x.trim()).filter(Boolean); let ok=toks.length>0, out=[];
+    for(const tk of toks){
+      const g=[...groupDocs.values()].find(g=>(g.name||"").toLowerCase()===tk.toLowerCase());
+      if(g) out.push(...g.members); else if(/^[A-Za-z]{1,5}$/.test(tk)) out.push(norm(tk)); else {ok=false;break}
+    }
+    if(ok){people=[...new Set(out)];title=m[2].trim()}
+  }
+  if(!people.length){const at=[...s.matchAll(/@([A-Za-z]{1,6})\b/g)].map(x=>norm(x[1]));if(at.length){people=at;title=s.replace(/@[A-Za-z]{1,6}\b/g,"").replace(/\s{2,}/g," ").trim()}}
+  return {people,title};
+}
+$("#addform").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const v=$("#add-input").value; if(!v.trim())return;
+  const {people,title}=parseAdd(v);
+  const t={id:newId(),title,notes:"",people,col:$("#add-col").value,status:"queued",followUp:null,created:now(),updated:now()};
+  $("#add-input").value="";
+  for(const p of people) await ensurePerson(p);
+  await saveTask(t);
+  const g=groupFor(mkey(people));
+  toast(people.length?"Added for "+(g?g.name:people.join(", ")):"Added");
+});
+
+// --- interactions ---
+document.addEventListener("click",e=>{
+  const el=e.target;
+  if(el.closest("#v-board")){view="board";try{localStorage.setItem("fub.view",view)}catch(_){}render();return}
+  if(el.closest("#v-people")){view="people";try{localStorage.setItem("fub.view",view)}catch(_){}render();return}
+  if(el.closest("[data-newgroup]")){openGroup(null);return}
+  const ge=el.closest("[data-editgroup]"); if(ge){openGroup(ge.dataset.editgroup);return}
+  const sdb=el.closest("[data-send]"); if(sdb){openSend([sdb.dataset.send]);return}
+  const mv=el.closest("[data-mv]"); if(mv){nudgeTile(mv.dataset.pk,mv.dataset.mv);return}
+  const st=el.closest("[data-stat]"); if(st){statFilter=statFilter===st.dataset.stat?null:st.dataset.stat;render();return}
+  const pp=el.closest("#peoplebar [data-person], #main [data-person]"); if(pp){personFilter=personFilter===pp.dataset.person?null:pp.dataset.person;render();return}
+  if(el.closest("[data-clear]")){personFilter=null;statFilter=null;render();return}
+  const sd=el.closest("[data-showdone]"); if(sd){const c=sd.dataset.showdone;showDone.has(c)?showDone.delete(c):showDone.add(c);render();return}
+  const card=el.closest("#main .card"); if(!card)return;
+  const t=tasks.get(card.dataset.id); if(!t)return;
+  if(el.closest("[data-actdone]")){finishTask(t);return}
+  const nx=el.closest("[data-next]");
+  if(nx){
+    const v=nx.dataset.next;
+    if(v==="pick"){const inp=document.createElement("input");inp.type="date";inp.min=TODAY;inp.value=addDays(TODAY,1);inp.dataset.pickfor=t.id;inp.setAttribute("aria-label","Follow-up date");nx.replaceWith(inp);inp.focus();try{inp.showPicker()}catch(_){};return}
+    const d=v==="mon"?nextWeekday(TODAY,1):v==="fri"?nextWeekday(TODAY,5):addDays(TODAY,+v);
+    setNext(t,d);return;
+  }
+  if(el.closest(".act"))return;
+  if(el.matches("[data-done]")){
+    const done=el.checked;
+    saveTask({...t,status:done?"done":"queued",completedAt:done?now():null,updated:now()});
+    if(done)toast("Done ✓");
+    return;
+  }
+  const sn=el.closest("[data-snooze]");
+  if(sn){const v=sn.dataset.snooze;const d=v==="mon"?nextWeekday(TODAY,1):addDays(TODAY,+v);saveTask({...t,followUp:d,updated:now()});toast("Follow up "+nice(d));return}
+  openEditor(t.id);
+});
+function setNext(t,d){
+  const wasDue=t.followUp&&t.followUp<=TODAY&&t.status!=="done";
+  const log=[...(t.log||[]),{d:TODAY,a:wasDue?"followed up":"date set",next:d}].slice(-50);
+  saveTask({...t,followUp:d,lastFollowUp:wasDue?TODAY:(t.lastFollowUp||null),log,updated:now()});
+  toast((wasDue?"Followed up. Next: ":"Follow up ")+nice(d));
+}
+function finishTask(t){
+  const log=[...(t.log||[]),{d:TODAY,a:"done"}].slice(-50);
+  saveTask({...t,status:"done",completedAt:now(),lastFollowUp:TODAY,log,updated:now()});
+  toast("Done ✓");
+}
+document.addEventListener("change",e=>{
+  const inp=e.target; if(!inp.matches||!inp.matches("input[data-pickfor]")||!inp.value)return;
+  const t=tasks.get(inp.dataset.pickfor); if(t)setNext(t,inp.value);
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&!$("#scrim").hidden){closeEditor();return}
+  if(e.key==="Enter"&&e.target.matches&&e.target.matches("#main .card")){openEditor(e.target.dataset.id)}
+});
+
+// drag & drop between columns
+let dragId=null;
+function fullOrder(){
+  const all=[...new Set([...allPeople().map(p=>p.initials),...allKeys,""])];
+  const known=order.filter(k=>all.includes(k));
+  const rest=all.filter(k=>!known.includes(k)).sort((a,b)=>a===""?1:b===""?-1:a.localeCompare(b));
+  return [...known,...rest];
+}
+let colDrag=null;
+const clearIns=()=>document.querySelectorAll(".ins-before,.ins-after,.ins-end").forEach(x=>x.classList.remove("ins-before","ins-after","ins-end"));
+function dropTarget(e){
+  const mc=e.target.closest&&e.target.closest(".mcol"); if(!mc)return null;
+  const tile=e.target.closest(".col[data-person-col]");
+  if(tile&&tile.dataset.personCol!==colDrag){const r=tile.getBoundingClientRect();const before=e.clientY<r.top+r.height/2;return {mc,tile,before}}
+  if(tile)return {mc,self:true};
+  return {mc,end:true};
+}
+document.addEventListener("dragstart",e=>{const g=e.target.closest&&e.target.closest("[data-grip]");if(!g)return;colDrag=g.dataset.grip;g.closest(".col").classList.add("lifting");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain","tile")}catch(_){}});
+document.addEventListener("dragover",e=>{if(colDrag===null)return;const d=dropTarget(e);if(!d)return;e.preventDefault();clearIns();if(d.self)return;
+  if(d.end)d.mc.classList.add("ins-end");else d.tile.classList.add(d.before?"ins-before":"ins-after")});
+document.addEventListener("drop",e=>{if(colDrag===null)return;const d=dropTarget(e);e.preventDefault();const key=colDrag;colDrag=null;clearIns();if(!d||d.self)return;
+  const ci=+d.mc.dataset.ci;
+  if(d.end){placeTile(key,ci,null);return}
+  if(d.before){placeTile(key,ci,d.tile.dataset.personCol);return}
+  let nx=d.tile.nextElementSibling; while(nx&&nx.dataset.personCol===key) nx=nx.nextElementSibling;
+  placeTile(key,ci,nx?nx.dataset.personCol:null)});
+document.addEventListener("dragend",()=>{colDrag=null;clearIns();document.querySelectorAll(".lifting").forEach(x=>x.classList.remove("lifting"))});
+let dragFrom=null;
+document.addEventListener("dragstart",e=>{const c=e.target.closest&&e.target.closest(".card[draggable=true]");if(!c)return;dragId=c.dataset.id;const sc=c.closest(".col");dragFrom=sc&&sc.dataset.personCol!==undefined?sc.dataset.personCol:null;c.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",dragId)}catch(_){}});
+document.addEventListener("dragend",e=>{document.querySelectorAll(".dragging,.drop").forEach(x=>x.classList.remove("dragging","drop"));dragId=null});
+document.addEventListener("dragover",e=>{const col=e.target.closest&&e.target.closest(".col");if(!col||!dragId||colDrag!==null)return;e.preventDefault();document.querySelectorAll(".col.drop").forEach(x=>x!==col&&x.classList.remove("drop"));col.classList.add("drop")});
+document.addEventListener("drop",e=>{const col=e.target.closest&&e.target.closest(".col");if(!col||!dragId)return;e.preventDefault();const t=tasks.get(dragId);if(!t)return;
+  if(col.dataset.col!==undefined){if(t.col!==col.dataset.col)saveTask({...t,col:col.dataset.col,updated:now()});return}
+  if(col.dataset.members!==undefined){const ppl=col.dataset.members?col.dataset.members.split(","):[];if(mkey(ppl)===mkey(t.people))return;saveTask({...t,people:ppl,updated:now()});const g=groupFor(mkey(ppl));toast(ppl.length?"Assigned to "+(g?g.name:ppl.join(" + ")):"Unassigned")}});
+
+// --- editor ---
+let ed=null, delArmed=false;
+function openEditor(id){
+  const t=tasks.get(id); if(!t)return;
+  ed={...t,people:[...(t.people||[])]};
+  delArmed=false; $("#e-del").classList.remove("armed"); $("#e-del").textContent="Delete";
+  $("#e-title").value=ed.title; $("#e-notes").value=ed.notes||""; $("#e-fu").value=ed.followUp||"";
+  drawEditor(); $("#scrim").hidden=false; setTimeout(()=>$("#e-title").focus(),30);
+}
+function drawEditor(){
+  const ppl=allPeople().map(p=>p.initials); for(const p of ed.people) if(!ppl.includes(p)) ppl.push(p);
+  const gs=[...groupDocs.values()].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  $("#e-people").innerHTML=(gs.length?`<div class="opts gopts" style="width:100%">${gs.map(g=>`<button type="button" class="opt" data-eg="${esc(mkey(g.members))}" aria-pressed="${mkey(g.members)===mkey(ed.people)}">${esc(g.name)}</button>`).join("")}</div>`:"")+ppl.map(p=>`<button type="button" class="pchip" style="--h:${hue(p)}" data-ep="${esc(p)}" aria-pressed="${ed.people.includes(p)}">${esc(p)}</button>`).join("")||'<span class="meta-line">No people yet. Add initials below.</span>';
+  $("#e-status").innerHTML=STATUS.map(s=>`<button type="button" class="opt" data-es="${s.id}" aria-pressed="${ed.status===s.id}">${s.name}</button>`).join("");
+  $("#e-col").innerHTML=COLS.map(c=>`<button type="button" class="opt" data-ec="${c.id}" aria-pressed="${(ed.col||"immediate")===c.id}">${c.name}</button>`).join("");
+  const q=[["Today",TODAY],["Tomorrow",addDays(TODAY,1)],["Mon",nextWeekday(TODAY,1)],["Fri",nextWeekday(TODAY,5)],["+1 wk",addDays(TODAY,7)],["+2 wk",addDays(TODAY,14)],["None",""]];
+  $("#e-fuq").innerHTML=q.map(([l,d])=>`<button type="button" class="opt" data-efu="${d}" aria-pressed="${(ed.followUp||"")===d&&(d!==""||!ed.followUp)}" title="${d?nice(d):"No follow-up"}">${l}</button>`).join("");
+  const age=ed.created?diffDays(TODAY,ed.created.slice(0,10)):0;
+  $("#e-meta").textContent="Added "+(ed.created?nice(ed.created.slice(0,10)):"—")+(age>0?" · on the list "+age+" day"+(age>1?"s":""):"")+(ed.completedAt?" · done "+nice(ed.completedAt.slice(0,10)):"")
+    +((ed.log||[]).length?"\nHistory: "+ed.log.slice(-6).map(l=>nice(l.d)+" "+l.a+(l.next?" → "+nice(l.next):"")).join("; "):"");
+}
+function closeEditor(){ $("#scrim").hidden=true; ed=null; }
+$("#scrim").addEventListener("click",e=>{
+  if(e.target===$("#scrim")){closeEditor();return}
+  const b=e.target.closest("button"); if(!b||!ed)return;
+  if(b.dataset.eg!==undefined){ed.people=b.dataset.eg.split("+");drawEditor()}
+  else if(b.dataset.ep!==undefined){const p=b.dataset.ep;ed.people=ed.people.includes(p)?ed.people.filter(x=>x!==p):[...ed.people,p];drawEditor()}
+  else if(b.dataset.es){ed.status=b.dataset.es;drawEditor()}
+  else if(b.dataset.ec){ed.col=b.dataset.ec;drawEditor()}
+  else if(b.dataset.efu!==undefined){ed.followUp=b.dataset.efu||null;$("#e-fu").value=b.dataset.efu;drawEditor()}
+});
+$("#e-fu").addEventListener("change",e=>{if(ed){ed.followUp=e.target.value||null;drawEditor()}});
+function addNewPerson(){const v=$("#e-newp").value.trim().replace(/\s+/g,"");if(!v||!ed)return;if(!ed.people.includes(v))ed.people.push(v);$("#e-newp").value="";ensurePerson(v);drawEditor()}
+$("#e-addp").addEventListener("click",addNewPerson);
+$("#e-newp").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNewPerson()}});
+$("#e-cancel").addEventListener("click",closeEditor);
+$("#e-save").addEventListener("click",()=>{
+  if(!ed)return;
+  const prev=tasks.get(ed.id)||{};
+  const t={...ed,title:$("#e-title").value.trim()||prev.title,notes:$("#e-notes").value.trim(),updated:now()};
+  if(t.status==="done"&&prev.status!=="done")t.completedAt=now();
+  if(t.status!=="done")t.completedAt=null;
+  closeEditor(); saveTask(t); toast("Saved");
+});
+$("#e-del").addEventListener("click",()=>{
+  if(!ed)return;
+  if(!delArmed){delArmed=true;$("#e-del").classList.add("armed");$("#e-del").textContent="Tap again to delete";return}
+  const id=ed.id; closeEditor(); deleteTask(id); toast("Deleted");
+});
+
+// --- import pasted text ---
+const MONI={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+function guessDate(txt){
+  const m=txt.match(/(?:[A-Z][a-z]{2}\s+)?([A-Z][a-z]{2})\s+(\d{1,2})(?:,?\s*(\d{4}))?/); if(!m||MONI[m[1]]===undefined)return null;
+  const t=parse(TODAY); let y=m[3]?+m[3]:t.getFullYear(); let d=new Date(y,MONI[m[1]],+m[2]);
+  if(!m[3]){const diff=(d-t)/864e5; if(diff<-183)d=new Date(y+1,MONI[m[1]],+m[2]); else if(diff>183)d=new Date(y-1,MONI[m[1]],+m[2]);}
+  return ymd(d);
+}
+function parseTileTitle(line){
+  line=line.trim();
+  if(/^my own items$|^me \/ unassigned$/i.test(line))return {people:[]};
+  let m=line.match(/^(.+?)\s*\(([^)]*)\)$/);
+  if(m){const inner=m[2].split(",").map(x=>x.trim()).filter(Boolean);
+    if(inner.length>1&&inner.every(x=>/^[A-Za-z]{1,6}$/.test(x)))return {people:inner,groupName:m[1].trim()};
+    if(/^[A-Za-z]{1,6}$/.test(m[1].trim()))return {people:[m[1].trim()],name:m[2].trim()};}
+  if(/^[A-Za-z]{1,6}(\s*\+\s*[A-Za-z]{1,6})*$/.test(line))return {people:line.split("+").map(x=>x.trim())};
+  return {people:[],groupName:null};
+}
+function parseImport(text){
+  const lines=text.replace(/\r/g,"").split("\n"); const items=[], groupsFound=[], names={};
+  const PRV=Object.fromEntries(Object.entries(PRN).map(([k,v])=>[v.toLowerCase(),k]));
+  const structured=lines.some(l=>/^\s*•\s+/.test(l));
+  if(!structured){
+    for(const l of lines){const v=l.trim().replace(/^[-*•]\s+/,""); if(!v)continue; const {people,title}=parseAdd(v); items.push({title,people,col:"immediate",status:"queued",followUp:null,notes:""})}
+    return {items,groupsFound,names};
+  }
+  let people=[], col="immediate", last=null;
+  for(let i=0;i<lines.length;i++){
+    const raw=lines[i], l=raw.trim();
+    if(!l){continue}
+    if(/^Follow-up (items|board) as of/i.test(l))continue;
+    if(i+1<lines.length&&/^-{2,}$/.test(lines[i+1].trim())){const tt=parseTileTitle(l);people=tt.people;if(tt.groupName)groupsFound.push({name:tt.groupName,members:tt.people});if(tt.name)names[tt.people[0]]=tt.name;col="immediate";last=null;i++;continue}
+    if(PRV[l.toLowerCase()]){col=PRV[l.toLowerCase()];last=null;continue}
+    if(l==="(nothing open)")continue;
+    const m=raw.match(/^\s*•\s+(.*)$/);
+    if(m){let title=m[1].trim(), st="queued", fu=null;
+      const b=title.match(/^(.*?)\s{2,}\(([^()]*)\)$/);
+      if(b){const bits=b[2].split(",").map(x=>x.trim());let used=false;
+        for(const x of bits){if(x==="in progress"){st="wip";used=true}else if(x==="waiting"){st="waiting";used=true}else if(x==="done"){st="done";used=true}else if(/^follow up /.test(x)){fu=guessDate(x.slice(10));used=true}}
+        if(used)title=b[1].trim();}
+      last={title,people:[...people],col,status:st,followUp:fu,notes:""};items.push(last);continue}
+    if(last&&/^\s{4,}/.test(raw)){last.notes+=(last.notes?"\n":"")+l;continue}
+  }
+  return {items,groupsFound,names};
+}
+let importParsed=null;
+function previewImport(){
+  importParsed=parseImport($("#i-text").value);
+  const its=importParsed.items;
+  const dupe=t=>[...tasks.values()].some(x=>x.title.trim().toLowerCase()===t.title.trim().toLowerCase()&&mkey(x.people)===mkey(t.people));
+  its.forEach(t=>t.dupe=dupe(t));
+  const fresh=its.filter(t=>!t.dupe);
+  $("#i-go").disabled=!fresh.length;
+  $("#i-go").textContent=fresh.length?"Add "+fresh.length+" item"+(fresh.length>1?"s":""):"Add items";
+  if(!its.length){$("#i-preview").textContent="No items found in that text.";return}
+  const byWho={};for(const t of fresh){const k=t.people.length?t.people.join(" + "):"Me";byWho[k]=(byWho[k]||0)+1}
+  $("#i-preview").innerHTML=Object.entries(byWho).map(([k,n])=>`${esc(k)}: ${n}`).join("<br>")+(its.length>fresh.length?`<br>${its.length-fresh.length} already on your board, skipped.`:"");
+}
+$("#import-btn").addEventListener("click",()=>{$("#i-text").value="";previewImport();$("#i-preview").textContent="Nothing pasted yet.";$("#iscrim").hidden=false;setTimeout(()=>$("#i-text").focus(),30)});
+$("#i-text").addEventListener("input",previewImport);
+$("#i-cancel").addEventListener("click",()=>$("#iscrim").hidden=true);
+$("#iscrim").addEventListener("click",e=>{if(e.target===$("#iscrim"))$("#iscrim").hidden=true});
+$("#i-go").addEventListener("click",async()=>{
+  if(!importParsed)return; const fresh=importParsed.items.filter(t=>!t.dupe); $("#iscrim").hidden=true;
+  const ppl=new Set(fresh.flatMap(t=>t.people));
+  for(const p of ppl){await ensurePerson(p); const nm=importParsed.names[p]; if(nm&&peopleCol&&!(peopleDocs.get(p)||{}).name){peopleDocs.set(p,{initials:p,name:nm});try{await peopleCol.doc(p).set({initials:p,name:nm})}catch(_){}}}
+  for(const g of importParsed.groupsFound){const k=mkey(g.members); if(!groupFor(k)){const id="g"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);groupDocs.set(id,{name:g.name,members:k.split("+")});if(groupsCol)try{await groupsCol.doc(id).set({name:g.name,members:k.split("+")})}catch(_){}}}
+  let n=0; for(const t of fresh){const {dupe,...rest}=t; await saveTask({id:newId(),...rest,completedAt:t.status==="done"?now():null,created:now(),updated:now()}); n++}
+  toast("Imported "+n+" item"+(n>1?"s":""));
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#iscrim").hidden)$("#iscrim").hidden=true});
+
+// --- send tiles ---
+let sendKeys=null, sopt={notes:true,done:false};
+const PRN={immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"Report to SMT"};
+function tileText(pk){
+  const tm=tileMap.get(pk); if(!tm)return "";
+  const list=tm.all.filter(t=>sopt.done||t.status!=="done").sort(sortTasks);
+  let out=tm.title+"\n"+"-".repeat(Math.min(40,tm.title.length))+"\n";
+  if(!list.length) return out+"(nothing open)\n";
+  let cur=null;
+  for(const t of list){
+    const c=t.col||"immediate"; if(c!==cur){cur=c;out+="\n"+PRN[c]+"\n"}
+    const bits=[];
+    if(t.status==="wip")bits.push("in progress"); if(t.status==="waiting")bits.push("waiting"); if(t.status==="done")bits.push("done");
+    if(t.followUp&&t.status!=="done")bits.push("follow up "+nice(t.followUp));
+    out+="  • "+t.title.replace(/\s*\n\s*/g," ")+(bits.length?"  ("+bits.join(", ")+")":"")+"\n";
+    if(sopt.notes&&t.notes) out+=t.notes.split("\n").map(l=>"      "+l).join("\n")+"\n";
+  }
+  return out;
+}
+function buildSend(){
+  const keys=sendKeys||currentCols().flat().filter(k=>tileMap.has(k)&&tileMap.get(k).all.some(t=>sopt.done||t.status!=="done"));
+  const head=(sendKeys?"Follow-up items":"Follow-up board")+" as of "+nice(TODAY)+", "+parse(TODAY).getFullYear()+"\n\n";
+  $("#s-text").value=head+keys.map(tileText).join("\n\n");
+  $("#s-opts").querySelectorAll("[data-sopt]").forEach(b=>b.setAttribute("aria-pressed",sopt[b.dataset.sopt]));
+  updateMail();
+}
+function updateMail(){
+  const to=$("#s-to").value.trim();
+  const subj=sendKeys&&sendKeys.length===1?"Follow-ups: "+(tileMap.get(sendKeys[0])||{}).title:"Follow-up board";
+  $("#s-mail").href="mailto:"+encodeURIComponent(to).replace(/%40/g,"@")+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent($("#s-text").value);
+}
+function openSend(keys){
+  if(view!=="people"){view="people";render()}
+  sendKeys=keys; $("#s-head").textContent=keys?"Send "+((tileMap.get(keys[0])||{}).title||"tile"):"Send board";
+  try{const v=localStorage.getItem("fub.sendto");if(v&&!$("#s-to").value)$("#s-to").value=v}catch(_){}
+  buildSend(); $("#sscrim").hidden=false; setTimeout(()=>$("#s-to").focus(),30);
+}
+const closeSend=()=>{$("#sscrim").hidden=true};
+$("#send-all").addEventListener("click",()=>openSend(null));
+$("#sscrim").addEventListener("click",e=>{
+  if(e.target===$("#sscrim")){closeSend();return}
+  const b=e.target.closest("[data-sopt]"); if(b){sopt[b.dataset.sopt]=!sopt[b.dataset.sopt];buildSend()}
+});
+$("#s-to").addEventListener("input",()=>{updateMail();try{localStorage.setItem("fub.sendto",$("#s-to").value.trim())}catch(_){}});
+$("#s-text").addEventListener("input",updateMail);
+$("#s-cancel").addEventListener("click",closeSend);
+$("#s-copy").addEventListener("click",()=>{
+  const ta=$("#s-text"), txt=ta.value;
+  if(window.AndroidBridge&&window.AndroidBridge.copyText){window.AndroidBridge.copyText(txt);toast("Copied");return}
+  const fallback=()=>{ta.focus();ta.select();toast("Text selected. Press Ctrl+C to copy.")};
+  try{navigator.clipboard.writeText(txt).then(()=>toast("Copied"),fallback)}catch(_){fallback()}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sscrim").hidden)closeSend()});
+
+// --- group editor ---
+let ge=null, gDelArmed=false;
+function openGroup(k){
+  const g=k?groupFor(k):null;
+  ge={id:g?g.id:null,oldKey:k||"",name:g?g.name:"",members:k?k.split("+"):[]};
+  gDelArmed=false;$("#g-del").classList.remove("armed");$("#g-del").textContent="Remove group";$("#g-del").hidden=!ge.id;
+  $("#g-name").value=ge.name; drawGroup(); $("#gscrim").hidden=false; setTimeout(()=>$("#g-name").focus(),30);
+}
+function drawGroup(){
+  $("#g-members").innerHTML=allPeople().map(p=>`<button type="button" class="pchip" style="--h:${hue(p.initials)};cursor:pointer;opacity:${ge.members.includes(p.initials)?1:.5}" data-gm="${esc(p.initials)}" aria-pressed="${ge.members.includes(p.initials)}">${esc(p.initials)}</button>`).join("");
+}
+const closeGroup=()=>{$("#gscrim").hidden=true;ge=null};
+$("#gscrim").addEventListener("click",e=>{
+  if(e.target===$("#gscrim")){closeGroup();return}
+  const b=e.target.closest("[data-gm]"); if(b&&ge){const p=b.dataset.gm;ge.members=ge.members.includes(p)?ge.members.filter(x=>x!==p):[...ge.members,p];drawGroup()}
+});
+$("#g-cancel").addEventListener("click",closeGroup);
+$("#g-save").addEventListener("click",async()=>{
+  if(!ge)return; const name=$("#g-name").value.trim();
+  if(!name){toast("Give the group a name.");return}
+  if(ge.members.length<2){toast("Pick at least two people.");return}
+  const nk=mkey(ge.members), clash=groupFor(nk);
+  if(clash&&clash.id!==ge.id){toast("“"+clash.name+"” already has these members.");return}
+  const id=ge.id||("g"+Date.now().toString(36)), oldKey=ge.oldKey; closeGroup();
+  groupDocs.set(id,{name,members:ge?ge.members:nk.split("+")});
+  groupDocs.set(id,{name,members:nk.split("+")});
+  // keep the tile's place in the layout and move its items along with it
+  if(oldKey&&oldKey!==nk){order=order.map(x=>x==="g:"+oldKey?"g:"+nk:x);if(layoutCols)layoutCols=layoutCols.map(c=>c.map(x=>x==="g:"+oldKey?"g:"+nk:x));
+    for(const t of [...tasks.values()]) if((t.people||[]).length>1&&mkey(t.people)===oldKey) await saveTask({...t,people:nk.split("+"),updated:now()});
+    if(layoutDoc&&layoutCols) try{await layoutDoc.set({cols:layoutCols.map(k=>({k}))})}catch(_){}}
+  render();
+  if(groupsCol) try{await groupsCol.doc(id).set({name,members:nk.split("+")})}catch(e){toast("Couldn't save the group.")}
+  toast("Saved "+name);
+});
+$("#g-del").addEventListener("click",async()=>{
+  if(!ge||!ge.id)return;
+  if(!gDelArmed){gDelArmed=true;$("#g-del").classList.add("armed");$("#g-del").textContent="Tap again to remove";return}
+  const id=ge.id; closeGroup(); groupDocs.delete(id); render();
+  if(groupsCol) try{await groupsCol.doc(id).delete()}catch(_){}
+  toast("Group removed. Its items stay with those people.");
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#gscrim").hidden)closeGroup()});
+
+// refresh "today" when the date rolls over
+setInterval(()=>{if(ymd(new Date())!==TODAY)render()},60000);
+
+// --- whole-board import (board.json from the earlier desktop app) ---
+async function importBoardObject(b){
+  if(!b||typeof b!=="object"||!b.tasks){toast("That file isn't a Follow-Up Board file.");return}
+  const ts=Object.entries(b.tasks||{});
+  if(!db){toast("Not connected yet.");return}
+  for(const [id,t] of ts){ if(!tasks.has(id)) await db.collection("tasks").doc(id).set({log:[],lastFollowUp:null,...t}); }
+  for(const [id,p] of Object.entries(b.people||{})){ if(!peopleDocs.has(id)) await db.collection("people").doc(id).set({initials:p.initials||id,name:p.name||""}); }
+  for(const [id,g] of Object.entries(b.groups||{})){ if(!groupDocs.has(id)) await db.collection("groups").doc(id).set({name:g.name,members:g.members||[]}); }
+  const lay=b.settings&&b.settings.layout; if(lay&&lay.cols&&!layoutCols) await db.doc("settings/layout").set(lay);
+  $("#iscrim").hidden=true; toast("Copied "+ts.length+" items into your sheet");
+}
+$("#i-file").addEventListener("change",e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f)return;
+  const r=new FileReader(); r.onload=()=>{try{importBoardObject(JSON.parse(r.result))}catch(_){toast("Couldn't read that file.")}}; r.readAsText(f); e.target.value="";
+});
+if(window.desktop&&window.desktop.loadLegacy){
+  window.desktop.loadLegacy().then(b=>{ if(b&&b.tasks&&Object.keys(b.tasks).length){ const btn=$("#i-legacy"); btn.hidden=false; btn.onclick=()=>importBoardObject(b); } }).catch(()=>{});
+}
+
+// --- settings & connection ---
+const NKEY="fub.notify";
+function notifyPrefs(){
+  let p={on:true,morning:"08:00",reminder:"13:00"};
+  try{Object.assign(p,JSON.parse(localStorage.getItem(NKEY)||"{}"))}catch(_){}
+  if(window.AndroidBridge){try{const c=JSON.parse(window.AndroidBridge.getConfig()||"{}");if(c.morning)Object.assign(p,{on:c.on!==false,morning:c.morning,reminder:c.reminder})}catch(_){}}
+  return p;
+}
+function openSettings(first){
+  const c=window.fubSync.conn||{}, p=notifyPrefs(), plat=window.fubSync.platform;
+  $("#set-intro").hidden=!first; $("#set-head").textContent=first?"Connect your Google Sheet":"Settings";
+  $("#set-url").value=c.url||""; $("#set-key").value=c.key||""; $("#set-conn-msg").textContent="";
+  $("#set-on").checked=p.on; $("#set-morning").value=p.morning; $("#set-rem").value=p.reminder;
+  $("#set-notify").hidden=plat==="web";
+  $("#set-notify-note").textContent=plat==="android"?"Notifications come from this phone, even when the app is closed. Weekends stay quiet."
+    :"Windows notifications appear while the app is open or minimized. Weekends stay quiet.";
+  $("#setscrim").hidden=false; setTimeout(()=>(first?$("#set-url"):$("#set-save")).focus(),30);
+}
+const closeSettings=()=>{$("#setscrim").hidden=true};
+$("#settings-btn").addEventListener("click",()=>openSettings(false));
+$("#banner-fix").addEventListener("click",()=>openSettings(!window.fubSync.conn));
+$("#set-cancel").addEventListener("click",closeSettings);
+$("#setscrim").addEventListener("click",e=>{if(e.target===$("#setscrim"))closeSettings()});
+$("#set-url").addEventListener("input",e=>{ // a pasted link that already holds the key
+  const v=e.target.value.trim(), m=v.match(/[?&]key=([A-Za-z0-9]+)/);
+  if(m){$("#set-key").value=m[1]; e.target.value=v.replace(/[?&]key=[A-Za-z0-9]+/,"");}
+});
+$("#set-save").addEventListener("click",async()=>{
+  const url=$("#set-url").value.trim(), key=$("#set-key").value.trim();
+  const prefs={on:$("#set-on").checked,morning:$("#set-morning").value||"08:00",reminder:$("#set-rem").value||"13:00"};
+  try{localStorage.setItem(NKEY,JSON.stringify(prefs))}catch(_){}
+  if(window.AndroidBridge){try{window.AndroidBridge.saveNotify(JSON.stringify(prefs))}catch(_){}}
+  if(window.desktop&&prefs.on&&"Notification" in window&&Notification.permission==="default"){try{Notification.requestPermission()}catch(_){}}
+  const c=window.fubSync.conn||{};
+  if(url&&key&&(url!==c.url||key!==c.key)){
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){$("#set-conn-msg").textContent="The URL should start with https://script.google.com/";return}
+    $("#set-conn-msg").textContent="Checking the connection…";
+    const r=await window.fubSync.test(url,key);
+    if(!r.ok){$("#set-conn-msg").textContent=r.msg;return}
+    await window.fubSync.connect(url,key);
+    toast("Connected");
+  } else if(!url||!key){ if(!c.url){$("#set-conn-msg").textContent="Enter both the URL and the access key.";return} }
+  else toast("Saved");
+  closeSettings();
+});
+$("#set-test").addEventListener("click",()=>{
+  if(window.AndroidBridge){window.AndroidBridge.testNotification();toast("Test sent. Check your notifications.");return}
+  showDeskNote("test");
+});
+
+// sync status pill + banner
+window.fubSync.onStatus((st,pending)=>{
+  const pill=$("#syncpill"); pill.className="syncpill "+st.state;
+  const t=st.state==="ok"?"Synced "+(st.last?st.last.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"")
+    :st.state==="syncing"?"Syncing…":st.state==="offline"?"Offline"+(pending?" · "+pending+" waiting":""):st.state==="error"?"Sync problem":"Not connected";
+  pill.querySelector("span").textContent=t; pill.title=st.msg||t;
+  const showBanner=st.state==="error"||(st.state==="idle"&&!window.fubSync.conn);
+  $("#banner").hidden=!showBanner; $("#banner-text").textContent=st.msg||"";
+});
+
+// --- Windows notifications (desktop app) ---
+function dueList(){ return openTasks().filter(t=>t.followUp&&t.followUp<=TODAY).sort((a,b)=>a.followUp.localeCompare(b.followUp)); }
+function showDeskNote(mode){
+  if(!("Notification" in window))return;
+  const due=dueList();
+  if(mode!=="test"&&!due.length)return;
+  const title=mode==="test"?"Follow-Up Board is set up":(mode==="reminder"?"Still due: ":"")+due.length+" follow-up"+(due.length>1?"s":"")+(mode==="reminder"?"":" due");
+  const body=due.slice(0,5).map(t=>((t.people||[]).join("/")||"Me")+": "+t.title).join("\n")+(due.length>5?"\n+"+(due.length-5)+" more":"")||"Notifications are working.";
+  const fire=()=>{try{const n=new Notification(title,{body});n.onclick=()=>{try{window.desktop&&window.desktop.focus&&window.desktop.focus()}catch(_){};statFilter=null;render()}}catch(_){}};
+  if(Notification.permission==="granted")fire(); else Notification.requestPermission().then(p=>p==="granted"&&fire());
+}
+if(window.fubSync.platform==="desktop"){
+  setInterval(()=>{
+    const p=notifyPrefs(); if(!p.on)return;
+    const d=new Date(), wd=d.getDay(); if(wd===0||wd===6)return;
+    const hm=pad(d.getHours())+":"+pad(d.getMinutes()), today=ymd(d);
+    for(const [mode,at] of [["morning",p.morning],["reminder",p.reminder]]){
+      const k="fub.last."+mode; let last=null; try{last=localStorage.getItem(k)}catch(_){}
+      if(last===today||hm<at)continue;
+      const [h,m]=at.split(":").map(Number); if(d.getHours()*60+d.getMinutes()>h*60+m+180){try{localStorage.setItem(k,today)}catch(_){};continue}
+      try{localStorage.setItem(k,today)}catch(_){}
+      TODAY=today; showDeskNote(mode);
+    }
+  },30000);
+}
+
+// Android back button: close whatever is open first
+window.__back=()=>{
+  for(const id of ["#setscrim","#iscrim","#sscrim","#gscrim"]) if(!$(id).hidden){$(id).hidden=true;return true}
+  if(!$("#scrim").hidden){closeEditor();return true}
+  if(personFilter||statFilter){personFilter=null;statFilter=null;render();return true}
+  return false;
+};
+if(!window.fubSync.conn) setTimeout(()=>openSettings(true),300);
+
+// --- boot ---
+render();
+(async()=>{
+  db=window.claude&&window.claude.use?await window.claude.use("db"):null;
+  if(!db){$("#status").textContent="Couldn't open the board file.";return}
+  tasksCol=db.collection("tasks"); peopleCol=db.collection("people");
+  let first=true;
+  tasksCol.onSnapshot(s=>{
+    tasks=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
+    {$("#status").textContent=tasks.size?"Type initials, a dash, then the item. Red glow means it's time to follow up; blue means it still needs a date.":"No items yet. Add your first one above, like “MtH - Shear payback period”.";}
+    if(!ed)render();
+  },err=>{$("#status").textContent="Lost connection to storage. Reload to reconnect."});
+  groupsCol=db.collection("groups");
+  groupsCol.onSnapshot(s=>{groupDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed&&!ge)render()},()=>{});
+  layoutDoc=db.doc("settings/layout");
+  layoutDoc.onSnapshot(d=>{const v=d.exists?d.data():{};if(Array.isArray(v.order))order=v.order.slice();if(Array.isArray(v.cols))layoutCols=v.cols.map(c=>Array.isArray(c&&c.k)?c.k.slice():[]);if(!ed&&!ge&&colDrag===null)render()},()=>{});
+  peopleCol.onSnapshot(s=>{peopleDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed)render()},()=>{});
+})();
+})();
+</script>
+
+</body>
+</html>

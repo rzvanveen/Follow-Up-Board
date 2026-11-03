@@ -1,0 +1,30 @@
+{
+  "name": "followup-board",
+  "productName": "Follow-Up Board",
+  "version": "2.0.0",
+  "description": "Action items and follow-ups, by person.",
+  "author": "Ryan VanVeen",
+  "main": "main.js",
+  "scripts": {
+    "dist": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.ryanvanveen.followupboard",
+    "productName": "Follow-Up Board",
+    "files": ["main.js", "preload.js", "index.html", "package.json"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Follow-Up Board",
+      "artifactName": "Follow-Up-Board-Setup.exe"
+    }
+  }
+}
