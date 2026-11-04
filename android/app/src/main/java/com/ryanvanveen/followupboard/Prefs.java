@@ -43,6 +43,7 @@ final class Prefs {
             o.put("on", on(c));
             o.put("morning", morning(c));
             o.put("reminder", reminder(c));
+            o.put("version", BuildConfig.VERSION_NAME);
             return o.toString();
         } catch (Exception e) {
             return "{}";

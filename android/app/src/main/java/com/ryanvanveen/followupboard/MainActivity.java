@@ -121,6 +121,38 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void openUrl(String url) {
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (ActivityNotFoundException ignored) { }
+        }
+
+        /** Looks at the repository's latest GitHub release and tells the page if it's newer than this app. */
+        @JavascriptInterface
+        public void checkUpdate() {
+            final String repo = BuildConfig.GH_REPO;
+            if (repo == null || repo.isEmpty()) return;
+            new Thread(() -> {
+                try {
+                    Http.Result r = Http.request("GET", "https://api.github.com/repos/" + repo + "/releases/latest", null);
+                    if (r.status != 200) return;
+                    JSONObject rel = new JSONObject(r.body);
+                    String tag = rel.optString("tag_name", "");
+                    int latest = Integer.parseInt(tag.replaceAll(".*\\.", "").replaceAll("[^0-9]", "").isEmpty() ? "0" : tag.replaceAll(".*\\.", "").replaceAll("[^0-9]", ""));
+                    if (latest <= BuildConfig.VERSION_CODE) return;
+                    org.json.JSONArray assets = rel.optJSONArray("assets");
+                    String apk = rel.optString("html_url", "");
+                    if (assets != null) for (int i = 0; i < assets.length(); i++) {
+                        JSONObject a = assets.getJSONObject(i);
+                        if (a.optString("name").endsWith(".apk")) apk = a.optString("browser_download_url", apk);
+                    }
+                    JSONObject info = new JSONObject();
+                    info.put("version", tag.replaceFirst("^v", ""));
+                    info.put("url", apk);
+                    js("window.__updateAvailable&&window.__updateAvailable(" + info + ")");
+                } catch (Exception ignored) { }
+            }).start();
+        }
+
+        @JavascriptInterface
         public void http(final String id, final String method, final String url, final String body) {
             new Thread(() -> {
                 Http.Result r = Http.request(method, url, body == null || body.isEmpty() ? null : body);

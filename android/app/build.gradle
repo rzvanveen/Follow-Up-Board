@@ -12,6 +12,11 @@ android {
         targetSdk 34
         versionCode Integer.parseInt(System.getenv("BUILD_NUMBER") ?: "1")
         versionName "2.0." + (System.getenv("BUILD_NUMBER") ?: "0")
+        buildConfigField "String", "GH_REPO", "\"" + (System.getenv("GITHUB_REPOSITORY") ?: "") + "\""
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     signingConfigs {

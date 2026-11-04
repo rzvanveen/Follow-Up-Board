@@ -49,7 +49,7 @@ function showConnection() {
   var html = HtmlService.createHtmlOutput(
     '<div style="font:14px Segoe UI,Roboto,Arial,sans-serif;line-height:1.5">' +
     '<p><b>Access key</b> (paste into the app):</p>' +
-    '<input style="width:100%;font:14px Consolas,monospace;padding:6px" readonly onclick="this.select()" value="' + key + '">' +
+    '<input style="width:100%;box-sizing:border-box;font:14px Consolas,monospace;padding:6px" readonly onclick="this.select()" value="' + key + '">' +
     '<p style="margin-top:14px"><b>Web app URL</b>: copy it from <i>Deploy &gt; Manage deployments</i> in the Apps Script editor. It ends in <code>/exec</code>.</p>' +
     (url ? '<p style="color:#666;font-size:12px">This script reports: ' + url + '</p>' : '') +
     '<p style="color:#666;font-size:12px">Anyone with both the URL and the key can read and change your board. Use "Make a new access key" if you ever need to lock old copies out.</p>' +

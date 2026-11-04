@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, Menu, net } = require("electron");
 const path = require("path");
 const fs = require("fs");
+let autoUpdater = null;
+try { ({ autoUpdater } = require("electron-updater")); } catch {}
 
 app.setName("Follow-Up Board");
 app.setAppUserModelId("com.ryanvanveen.followupboard");
@@ -27,6 +29,22 @@ ipcMain.handle("http", async (_e, { method, url, body }) => {
 
 // The board saved by the earlier, offline version of this app (if any), so it can be copied to the sheet.
 ipcMain.handle("legacy:load", () => readJSON(path.join(dataDir(), "board.json"), null));
+
+ipcMain.on("app:version", (e) => { e.returnValue = app.getVersion(); });
+ipcMain.on("update:install", () => { if (autoUpdater) autoUpdater.quitAndInstall(true, true); });
+
+// Updates: GitHub releases are checked at start and every 4 hours. A new version downloads
+// quietly, installs when the app closes, or right away from the "Restart to update" button.
+function startUpdates() {
+  if (!autoUpdater || !app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("update-downloaded", (info) => { if (win) win.webContents.send("update:ready", { ready: true, version: info && info.version }); });
+  autoUpdater.on("error", () => {});
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  check();
+  setInterval(check, 4 * 60 * 60 * 1000);
+}
 
 let win;
 ipcMain.on("win:focus", () => { if (win) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } });
@@ -74,6 +92,6 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => { createWindow(); startUpdates(); });
   app.on("window-all-closed", () => app.quit());
 }

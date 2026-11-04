@@ -157,6 +157,7 @@ button.pchip{cursor:pointer}
 .iconbtn{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:7px 11px;font-weight:600}
 .banner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--overdue-soft);color:var(--overdue);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:600}
 .banner button{margin-left:auto}
+.banner.upd{background:var(--accent-soft);color:var(--accent)}
 .timegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .check-line{display:flex;gap:8px;align-items:center;font-weight:600}
 @media (max-width:600px){.summary{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.stat{flex:none}.add select{max-width:120px}}
@@ -236,12 +237,13 @@ button.pchip{cursor:pointer}
   </header>
 
   <form class="add" id="addform" autocomplete="off">
-    <input id="add-input" placeholder="MtH - Shear payback period   (initials or group, dash, item)" aria-label="New item">
+    <input id="add-input" placeholder="Name - What needs doing -- Details (optional)" aria-label="New item">
     <select id="add-col" aria-label="Priority"></select>
     <button class="btn primary" type="submit">Add</button>
   </form>
-  <p class="note" id="status" style="margin-top:8px">Type initials, a dash, then the item. Red glow means it's time to follow up; blue means it still needs a date.</p>
+  <p class="note" id="status" style="margin-top:8px">Red glow: time to follow up. Blue glow: still needs a date.</p>
 
+  <div class="banner upd" id="upd" hidden><span id="upd-text">A new version is ready.</span><button class="btn primary" id="upd-go" type="button">Update now</button></div>
   <div class="banner" id="banner" hidden><span id="banner-text"></span><button class="btn" id="banner-fix" type="button">Open settings</button></div>
   <div class="summary" id="summary"></div>
   <div class="people" id="peoplebar"></div>
@@ -253,7 +255,7 @@ button.pchip{cursor:pointer}
     <h3 id="e-head">Edit item</h3>
     <div class="field"><label for="e-title">Item</label><textarea id="e-title" rows="2"></textarea></div>
     <div class="field"><span class="l">Who</span><div class="opts" id="e-people"></div>
-      <div class="newp"><input id="e-newp" placeholder="Initials" maxlength="6" aria-label="Add person initials"><button class="btn" id="e-addp" type="button">Add person</button></div></div>
+      <div class="newp"><input id="e-newp" placeholder="Name or initials" maxlength="30" aria-label="Add a person"><button class="btn" id="e-addp" type="button">Add person</button></div></div>
     <div class="field"><span class="l">Follow up</span>
       <div class="dline"><input type="date" id="e-fu" aria-label="Follow-up date">
         <div class="opts" id="e-fuq"></div></div></div>
@@ -305,7 +307,7 @@ button.pchip{cursor:pointer}
   <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="i-head">
     <h3 id="i-head">Import items</h3>
     <div class="field"><label for="i-text">Paste the text you received</label>
-      <textarea id="i-text" rows="12" placeholder="Paste a tile or board someone sent you from their Follow-Up Board.&#10;&#10;You can also paste a plain list, one item per line:&#10;MtH - Shear payback period&#10;DS/JMB - Logistics review"></textarea></div>
+      <textarea id="i-text" rows="12" placeholder="Paste a tile or board someone sent you from their Follow-Up Board.&#10;&#10;You can also paste a plain list, one item per line:&#10;Name - What needs doing -- Details&#10;Name/Other name - Shared item"></textarea></div>
     <div class="field"><span class="l">Or bring in a whole board file</span>
       <div class="dline"><input type="file" id="i-file" accept=".json,application/json" aria-label="Board file"><button class="btn" id="i-legacy" type="button" hidden>Copy the board saved on this PC</button></div>
       <div class="meta-line">A board.json from the earlier desktop app (in %APPDATA%\Follow-Up Board).</div></div>
@@ -334,6 +336,7 @@ button.pchip{cursor:pointer}
       <p class="meta-line" id="set-notify-note"></p>
       <button class="btn" id="set-test" type="button">Send a test notification</button>
     </div>
+    <p class="meta-line" id="set-version"></p>
     <div class="actions">
       <button class="btn" id="set-cancel" type="button">Cancel</button>
       <span class="sp"></span>
@@ -719,27 +722,32 @@ async function ensurePerson(ini){
 }
 const newId=()=>"t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
-// --- quick add: "MtH - item", "DJS/MtH - item", "@NL item" ---
+// --- quick add: "Name - item -- details", "Name/Other - item", "Group - item" ---
+const cleanName=x=>String(x||"").replace(/[+,\/]/g," ").replace(/\s+/g," ").trim().slice(0,30);
 function parseAdd(s){
-  s=s.trim(); let people=[],title=s,m;
+  s=s.trim(); let people=[], title=s, notes="", m;
+  // details after " -- "
+  if((m=s.match(/^(.*?)\s+--\s+(.*)$/s))){ title=m[1].trim(); notes=m[2].trim(); s=title; }
   const known=allPeople().map(p=>p.initials);
   const norm=x=>known.find(k=>k.toLowerCase()===x.toLowerCase())||x;
-  if((m=s.match(/^([^\n]{1,40}?)\s*[-–—:]\s*(.+)$/s))){
-    const toks=m[1].split("/").map(x=>x.trim()).filter(Boolean); let ok=toks.length>0, out=[];
-    for(const tk of toks){
+  // name before the first " - " (spaces around the dash)
+  if((m=s.match(/^(.{1,60}?)\s+[-–—]\s+(.+)$/s))){
+    const out=[];
+    for(const tk of m[1].split("/").map(cleanName).filter(Boolean)){
       const g=[...groupDocs.values()].find(g=>(g.name||"").toLowerCase()===tk.toLowerCase());
-      if(g) out.push(...g.members); else if(/^[A-Za-z]{1,5}$/.test(tk)) out.push(norm(tk)); else {ok=false;break}
+      if(g) out.push(...g.members); else out.push(norm(tk));
     }
-    if(ok){people=[...new Set(out)];title=m[2].trim()}
+    if(out.length){people=[...new Set(out)];title=m[2].trim()}
   }
-  if(!people.length){const at=[...s.matchAll(/@([A-Za-z]{1,6})\b/g)].map(x=>norm(x[1]));if(at.length){people=at;title=s.replace(/@[A-Za-z]{1,6}\b/g,"").replace(/\s{2,}/g," ").trim()}}
-  return {people,title};
+  if(!people.length){const at=[...s.matchAll(/@([A-Za-z][\w.]{0,29})/g)].map(x=>norm(x[1]));if(at.length){people=at;title=s.replace(/@[A-Za-z][\w.]{0,29}/g,"").replace(/\s{2,}/g," ").trim()}}
+  return {people,title,notes};
 }
 $("#addform").addEventListener("submit",async e=>{
   e.preventDefault();
   const v=$("#add-input").value; if(!v.trim())return;
-  const {people,title}=parseAdd(v);
-  const t={id:newId(),title,notes:"",people,col:$("#add-col").value,status:"queued",followUp:null,created:now(),updated:now()};
+  const {people,title,notes}=parseAdd(v);
+  if(!title){toast("Add what needs doing after the dash.");return}
+  const t={id:newId(),title,notes,people,col:$("#add-col").value,status:"queued",followUp:null,created:now(),updated:now()};
   $("#add-input").value="";
   for(const p of people) await ensurePerson(p);
   await saveTask(t);
@@ -868,7 +876,7 @@ $("#scrim").addEventListener("click",e=>{
   else if(b.dataset.efu!==undefined){ed.followUp=b.dataset.efu||null;$("#e-fu").value=b.dataset.efu;drawEditor()}
 });
 $("#e-fu").addEventListener("change",e=>{if(ed){ed.followUp=e.target.value||null;drawEditor()}});
-function addNewPerson(){const v=$("#e-newp").value.trim().replace(/\s+/g,"");if(!v||!ed)return;if(!ed.people.includes(v))ed.people.push(v);$("#e-newp").value="";ensurePerson(v);drawEditor()}
+function addNewPerson(){const v=cleanName($("#e-newp").value);if(!v||!ed)return;if(!ed.people.includes(v))ed.people.push(v);$("#e-newp").value="";ensurePerson(v);drawEditor()}
 $("#e-addp").addEventListener("click",addNewPerson);
 $("#e-newp").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();addNewPerson()}});
 $("#e-cancel").addEventListener("click",closeEditor);
@@ -899,17 +907,16 @@ function parseTileTitle(line){
   if(/^my own items$|^me \/ unassigned$/i.test(line))return {people:[]};
   let m=line.match(/^(.+?)\s*\(([^)]*)\)$/);
   if(m){const inner=m[2].split(",").map(x=>x.trim()).filter(Boolean);
-    if(inner.length>1&&inner.every(x=>/^[A-Za-z]{1,6}$/.test(x)))return {people:inner,groupName:m[1].trim()};
-    if(/^[A-Za-z]{1,6}$/.test(m[1].trim()))return {people:[m[1].trim()],name:m[2].trim()};}
-  if(/^[A-Za-z]{1,6}(\s*\+\s*[A-Za-z]{1,6})*$/.test(line))return {people:line.split("+").map(x=>x.trim())};
-  return {people:[],groupName:null};
+    if(inner.length>1)return {people:inner.map(cleanName),groupName:m[1].trim()};
+    return {people:[cleanName(m[1])],name:m[2].trim()};}
+  return {people:line.split("+").map(cleanName).filter(Boolean)};
 }
 function parseImport(text){
   const lines=text.replace(/\r/g,"").split("\n"); const items=[], groupsFound=[], names={};
   const PRV=Object.fromEntries(Object.entries(PRN).map(([k,v])=>[v.toLowerCase(),k]));
   const structured=lines.some(l=>/^\s*•\s+/.test(l));
   if(!structured){
-    for(const l of lines){const v=l.trim().replace(/^[-*•]\s+/,""); if(!v)continue; const {people,title}=parseAdd(v); items.push({title,people,col:"immediate",status:"queued",followUp:null,notes:""})}
+    for(const l of lines){const v=l.trim().replace(/^[-*•]\s+/,""); if(!v)continue; const {people,title,notes}=parseAdd(v); if(title) items.push({title,people,col:"immediate",status:"queued",followUp:null,notes})}
     return {items,groupsFound,names};
   }
   let people=[], col="immediate", last=null;
@@ -1172,6 +1179,25 @@ window.__back=()=>{
 };
 if(!window.fubSync.conn) setTimeout(()=>openSettings(true),300);
 
+// --- app updates ---
+// Android asks GitHub for a newer build; Windows downloads it in the background and installs on restart.
+let updAction=null;
+window.__updateAvailable=info=>{
+  if(!info)return;
+  if(info.ready){ $("#upd-text").textContent="An update has been downloaded."; $("#upd-go").textContent="Restart to update"; updAction=()=>window.desktop.installUpdate(); }
+  else { $("#upd-text").textContent="A new version ("+(info.version||"update")+") is available."; $("#upd-go").textContent="Download update"; updAction=()=>window.AndroidBridge.openUrl(info.url); }
+  $("#upd").hidden=false;
+};
+$("#upd-go").addEventListener("click",()=>{ if(updAction) updAction(); if(window.AndroidBridge) toast("When the download finishes, tap it to install."); });
+function appVersion(){
+  try{ if(window.AndroidBridge) return JSON.parse(window.AndroidBridge.getConfig()||"{}").version||""; }catch(_){}
+  return (window.desktop&&window.desktop.version)||"";
+}
+const _openSettings=openSettings;
+openSettings=function(first){ _openSettings(first); const v=appVersion(); $("#set-version").textContent=v?"App version "+v:""; };
+if(window.desktop&&window.desktop.onUpdate) window.desktop.onUpdate(info=>window.__updateAvailable(info));
+if(window.AndroidBridge&&window.AndroidBridge.checkUpdate) setTimeout(()=>{try{window.AndroidBridge.checkUpdate()}catch(_){}},3000);
+
 // --- boot ---
 render();
 (async()=>{
@@ -1181,7 +1207,7 @@ render();
   let first=true;
   tasksCol.onSnapshot(s=>{
     tasks=new Map(s.docs.map(d=>[d.id,{id:d.id,...d.data()}]));
-    {$("#status").textContent=tasks.size?"Type initials, a dash, then the item. Red glow means it's time to follow up; blue means it still needs a date.":"No items yet. Add your first one above, like “MtH - Shear payback period”.";}
+    {$("#status").textContent=tasks.size?"Red glow: time to follow up. Blue glow: still needs a date.":"No items yet. Add your first one above.";}
     if(!ed)render();
   },err=>{$("#status").textContent="Lost connection to storage. Reload to reconnect."});
   groupsCol=db.collection("groups");

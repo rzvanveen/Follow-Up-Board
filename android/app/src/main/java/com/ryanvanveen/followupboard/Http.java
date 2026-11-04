@@ -25,6 +25,7 @@ final class Http {
                 c.setConnectTimeout(15000);
                 c.setReadTimeout(30000);
                 c.setRequestMethod(m);
+                c.setRequestProperty("User-Agent", "FollowUpBoard-Android");
                 if ("POST".equals(m) && b != null) {
                     c.setDoOutput(true);
                     c.setRequestProperty("Content-Type", "text/plain;charset=utf-8");

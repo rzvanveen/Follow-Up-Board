@@ -15,9 +15,20 @@
   "build": {
     "appId": "com.ryanvanveen.followupboard",
     "productName": "Follow-Up Board",
-    "files": ["main.js", "preload.js", "index.html", "package.json"],
-    "directories": { "output": "dist", "buildResources": "build" },
-    "win": { "target": "nsis", "icon": "build/icon.png" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
@@ -25,6 +36,17 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Follow-Up Board",
       "artifactName": "Follow-Up-Board-Setup.exe"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "OWNER",
+        "repo": "REPO",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
   }
 }
