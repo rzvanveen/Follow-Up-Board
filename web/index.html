@@ -74,7 +74,7 @@ header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-b
 .summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .stat{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 12px 5px 6px;font-weight:600}
 .stat b{font-family:var(--mono);font-size:12px;min-width:24px;text-align:center;border-radius:999px;padding:2px 6px}
-.stat.overdue b{background:var(--overdue-soft);color:var(--overdue)}
+.stat.overdue b,.stat.due b{background:var(--overdue-soft);color:var(--overdue)}
 .stat.today b{background:var(--due-soft);color:var(--due)}
 .stat.week b{background:var(--accent-soft);color:var(--accent)}
 .stat.wip b{background:var(--wip-soft);color:var(--wip)}
@@ -100,9 +100,9 @@ button.pchip{cursor:pointer}
 .ins-before::before{top:-9px}.ins-after::after{bottom:-9px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px;align-items:start}
 .col.person{--h:210;background:hsl(var(--h) var(--tile-s) var(--tile-l));border-color:hsl(var(--h) var(--tile-s) var(--tile-b))}
-.col.person h2{border-bottom:2px solid hsl(var(--h) var(--chip-s) var(--chip-l) / .35);padding-bottom:8px}
+.col.person h2{border-bottom:1px solid hsl(var(--h) var(--chip-s) var(--chip-l) / .3);padding-bottom:6px}
 .col.group{border-width:2px;border-style:dashed}
-.col .gname{font-size:14px;font-weight:800;font-family:var(--display)}
+.col .gname{font-size:13px;font-weight:800;font-family:var(--display)}
 .col .gm{display:flex;gap:3px;flex-wrap:wrap}
 .col .gm .pchip{font-size:10.5px!important;padding:1px 5px!important}
 .col .gedit{border:1px solid var(--line);background:var(--card);border-radius:5px;font-size:11px;font-weight:700;padding:1px 7px;color:var(--muted)}
@@ -119,8 +119,13 @@ button.pchip{cursor:pointer}
 .col.drop{outline:2px dashed var(--accent);outline-offset:-4px}
 .col h2{display:flex;align-items:center;justify-content:space-between;font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin:2px 4px 4px}
 .col h2 .hd{display:flex;align-items:center;gap:8px;min-width:0;text-transform:none;letter-spacing:0}
-.col h2 .hd .pchip{font-size:13px;padding:3px 9px}
-.col h2 .nm{font-size:14px;font-weight:700}
+.col h2 .hd .pchip{font-size:12px;padding:2px 7px}
+.tiles .col h2{margin:0 2px 2px}
+.tiles .col h2 .tools{gap:0;opacity:.55}
+.tiles .col:hover h2 .tools,.tiles .col:focus-within h2 .tools{opacity:1}
+.tiles .col h2 .mv{font-size:11px;padding:1px 4px}
+.tiles .col h2 .grip{font-size:13px}
+.col h2 .nm{font-size:13px;font-weight:700}
 .col h2 .prio{font-size:12px;padding:3px 8px;text-transform:uppercase;letter-spacing:.06em}
 .prio{--pc:var(--muted);display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:5px;padding:2px 7px;background:color-mix(in srgb,var(--pc) 14%,transparent);color:var(--pc);white-space:nowrap}
 .prio i{width:7px;height:7px;border-radius:50%;background:var(--pc)}
@@ -147,6 +152,9 @@ button.pchip{cursor:pointer}
 .card.nodate .act .lbl{color:var(--glow-blue)}
 .act button{border:1px solid var(--line);background:var(--bg);border-radius:6px;font-size:12px;font-weight:600;padding:4px 8px;min-height:30px}
 .act button:hover{border-color:var(--ink)}
+.donebtn{border:1px solid color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-soft);color:var(--ok);border-radius:6px;font-size:12px;font-weight:600;padding:3px 9px;min-height:28px}
+.donebtn.reopen{background:var(--bg);border-color:var(--line);color:var(--muted)}
+.card .foot .age{margin-left:auto}
 .act button.ok{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 45%,transparent);color:var(--ok);margin-left:auto}
 .act input[type=date]{border:1px solid var(--line);background:var(--bg);border-radius:6px;font-size:12px;padding:3px 6px;min-height:30px}
 .stat.nodate b{background:var(--nodate-soft);color:var(--glow-blue)}
@@ -559,8 +567,7 @@ function matches(t){
   if(personFilter && !(t.people||[]).includes(personFilter)) return false;
   if(statFilter){
     const f=fuInfo(t);
-    if(statFilter==="overdue") return f&&f.n<0;
-    if(statFilter==="today") return f&&f.n===0;
+    if(statFilter==="due"||statFilter==="overdue"||statFilter==="today") return f&&f.n<=0;
     if(statFilter==="week") return f&&f.n>=0&&f.n<=7;
     if(statFilter==="wip") return t.status==="wip";
     if(statFilter==="nodate") return t.status!=="done"&&!t.followUp;
@@ -569,7 +576,11 @@ function matches(t){
 }
 const rank=t=>({wip:0,waiting:1,queued:2,done:3}[t.status]??2);
 const pr=t=>COLS.findIndex(c=>c.id===(t.col||"immediate"));
+const isDueT=t=>t.status!=="done"&&!!t.followUp&&t.followUp<=TODAY;
 function sortTasks(a,b){
+  const da=isDueT(a), db_=isDueT(b);
+  if(da!==db_)return da?-1:1;
+  if(da&&db_&&a.followUp!==b.followUp)return a.followUp<b.followUp?-1:1;
   if(pr(a)!==pr(b))return pr(a)-pr(b);
   if(rank(a)!==rank(b))return rank(a)-rank(b);
   const fa=a.followUp||"9999",fb=b.followUp||"9999";
@@ -591,11 +602,14 @@ function cardHTML(t,opts={}){
   const nb=(v,l,ttl)=>`<button type="button" data-next="${v}" title="${ttl}">${l}</button>`;
   const act=isDue?`<div class="act"><span class="lbl">Followed up? Next:</span>${nb("1","Tomorrow","Follow up again tomorrow")}${nb("mon","Mon","Follow up again next Monday")}${nb("7","+1 wk","Follow up again in a week")}${nb("pick","📅","Pick a date")}<button type="button" class="ok" data-actdone title="Mark done">✓ Done</button></div>`
     :noDate?`<div class="act"><span class="lbl">Set follow-up:</span>${nb("1","Tomorrow","Follow up tomorrow")}${nb("fri","Fri","Follow up Friday")}${nb("7","+1 wk","Follow up in a week")}${nb("pick","📅","Pick a date")}</div>`:"";
+  const rowInner=(opts.showPrio?prioBadge(t):"")+(opts.showPeople?(t.people||[]).map(p=>chip(p)).join(""):"")+st;
+  const doneBtn=t.status==="done"?`<button type="button" class="donebtn reopen" data-reopen title="Put it back on the board">↺ Reopen</button>`
+    :isDue?"":`<button type="button" class="donebtn" data-actdone title="Mark done">✓ Done</button>`;
   return `<div class="${cls}" data-id="${esc(t.id)}" draggable="${opts.drag?"true":"false"}" tabindex="0" role="button" aria-label="Edit: ${esc(t.title)}">
-    <div class="row"><input type="checkbox" class="check" data-done ${t.status==="done"?"checked":""} aria-label="Mark done">${opts.showPrio?prioBadge(t):""}${opts.showPeople?(t.people||[]).map(p=>chip(p)).join(""):""}${st}</div>
+    ${rowInner?`<div class="row">${rowInner}</div>`:""}
     <div class="title">${esc(t.title)}</div>
     ${t.notes?`<div class="notes">${esc(t.notes)}</div>`:""}
-    <div class="foot">${fu}${quick}</div>
+    <div class="foot">${fu}${quick}${doneBtn}</div>
     ${act}
   </div>`;
 }
@@ -604,13 +618,15 @@ function render(){
   TODAY=ymd(new Date());
   // summary
   const o=openTasks();
-  const cnt=k=>o.filter(t=>{const f=fuInfo(t);return k==="overdue"?f&&f.n<0:k==="today"?f&&f.n===0:k==="week"?f&&f.n>=0&&f.n<=7:k==="nodate"?!t.followUp:t.status==="wip"}).length;
-  $("#summary").innerHTML=[["overdue","Overdue follow-ups"],["today","Follow up today"],["nodate","No date set"],["week","Next 7 days"],["wip","In progress"]]
+  const cnt=k=>o.filter(t=>{const f=fuInfo(t);return k==="due"?f&&f.n<=0:k==="week"?f&&f.n>0&&f.n<=7:k==="nodate"?!t.followUp:t.status==="wip"}).length;
+  $("#summary").innerHTML=[["due","Follow up now"],["nodate","No date set"],["week","Coming up (7 days)"],["wip","In progress"]]
+    .filter(([k])=>cnt(k)>0||statFilter===k)
     .map(([k,l])=>`<button class="stat ${k}" data-stat="${k}" aria-pressed="${statFilter===k}"><b>${cnt(k)}</b>${l}</button>`).join("");
   // people bar
   const ppl=allPeople();
   $("#peoplebar").innerHTML=`<span class="lbl">Who</span>`+ppl.map(p=>{
     const n=o.filter(t=>(t.people||[]).includes(p.initials)).length;
+    if(!n&&personFilter!==p.initials)return "";
     return `<button class="pchip" style="--h:${hue(p.initials)}" data-person="${esc(p.initials)}" aria-pressed="${personFilter===p.initials}" title="${esc(p.name||p.initials)}">${esc(p.initials)}<span class="n">${n}</span></button>`;
   }).join("")+`<button class="newgroup" data-newgroup>+ Group</button>`+((personFilter||statFilter)?`<button class="clear" data-clear>Clear filters</button>`:"");
   $("#v-board").setAttribute("aria-pressed",view==="board");
@@ -650,7 +666,7 @@ function render(){
     const done=g.all.filter(t=>t.status==="done").sort((a,b)=>(b.completedAt||"").localeCompare(a.completedAt||""));
     const sd=showDone.has(g.key);
     const mvb=(d,ic,l)=>`<button class="mv" data-mv="${d}" data-pk="${esc(g.pk)}" title="${l}" aria-label="${l}">${ic}</button>`;
-    const tools=tiles?`<span class="tools">${mvb("left","◀","Move to the column on the left")}${mvb("up","▲","Move up")}${mvb("down","▼","Move down")}${mvb("right","▶","Move to the column on the right")}<button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
+    const tools=tiles?`<span class="tools"><button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
     const attr=tiles?`data-person-col="${esc(g.pk)}" data-members="${esc((g.members||[]).join(","))}"`:g.attr;
     return `<section class="col ${g.cls||""}" style="${g.style||""}" ${attr}>
       <h2 ${tiles?`draggable="true" data-grip="${esc(g.pk)}" title="Drag to move this tile"`:""}><span class="hd">${g.head}<span class="ct">${open.length}</span></span>${tools}</h2>
@@ -771,6 +787,7 @@ document.addEventListener("click",e=>{
   const card=el.closest("#main .card"); if(!card)return;
   const t=tasks.get(card.dataset.id); if(!t)return;
   if(el.closest("[data-actdone]")){finishTask(t);return}
+  if(el.closest("[data-reopen]")){saveTask({...t,status:"queued",completedAt:null,log:[...(t.log||[]),{d:TODAY,a:"reopened"}].slice(-50),updated:now()});toast("Back on the board");return}
   const nx=el.closest("[data-next]");
   if(nx){
     const v=nx.dataset.next;
