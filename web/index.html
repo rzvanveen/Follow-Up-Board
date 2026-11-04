@@ -55,6 +55,26 @@ button{cursor:pointer}
 @media (max-width:600px){.wrap{padding-inline:16px}}
 
 header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:14px}
+.menuwrap{position:relative;display:none}
+.menubtn{position:relative;font-size:18px;line-height:1;padding:7px 11px}
+.mdot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:transparent}
+.mdot.offline{background:var(--due)}.mdot.error{background:var(--overdue)}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:15;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(10,15,22,.18);padding:6px;display:flex;flex-direction:column}
+.menu[hidden]{display:none}
+.menu>button{border:0;background:none;text-align:left;padding:11px 12px;border-radius:8px;font-weight:600;font-size:15px}
+.menu>button:hover,.menu>button:focus-visible{background:var(--panel)}
+.menu-sync{display:flex;align-items:center;gap:8px;padding:6px 6px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.menu-link{white-space:nowrap;border:0;background:none;color:var(--accent);font-weight:600;font-size:13px;margin-left:auto;padding:4px}
+@media (max-width:700px){
+  header.top{gap:10px}
+  header.top .wide{display:none!important}
+  .menuwrap{display:block}
+  .brand{flex:1;min-width:0}
+  .brand h1{font-size:21px;white-space:nowrap}
+  .brand .date{display:none}
+  header.top .seg{order:3;width:100%}
+  header.top .seg button{flex:1}
+}
 .brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
 .brand h1{font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:-.01em;margin:0}
 .brand .date{font-family:var(--mono);font-size:12px;color:var(--muted)}
@@ -236,12 +256,21 @@ button.pchip{cursor:pointer}
 <div class="wrap">
   <header class="top">
     <div class="brand"><h1>Follow-Up Board</h1><span class="date" id="today"></span></div>
+    <div class="menuwrap">
+      <button class="iconbtn menubtn" id="menu-btn" type="button" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰<i class="mdot" id="menu-dot"></i></button>
+      <div class="menu" id="menu" role="menu" hidden>
+        <div class="menu-sync"><span class="syncpill" id="menu-sync"><i></i><span>Starting…</span></span><button type="button" class="menu-link" id="menu-syncnow">Sync now</button></div>
+        <button type="button" role="menuitem" data-menu="#settings-btn">⚙&nbsp; Settings</button>
+        <button type="button" role="menuitem" data-menu="#import-btn">⇩&nbsp; Import</button>
+        <button type="button" role="menuitem" data-menu="#send-all">✉&nbsp; Send board</button>
+      </div>
+    </div>
     <div class="seg" role="group" aria-label="View">
       <button id="v-people" aria-pressed="true">By person</button>
       <button id="v-board" aria-pressed="false">By priority</button>
     </div>
-    <span class="syncpill" id="syncpill" title="Sync status"><i></i><span>Starting…</span></span>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="iconbtn" id="settings-btn" type="button" title="Settings" aria-label="Settings">⚙</button><button class="btn" id="import-btn" type="button" title="Paste items someone sent you">⇩ Import</button><button class="btn" id="send-all" type="button" title="Send all tiles">✉ Send board</button></div>
+    <span class="syncpill wide" id="syncpill" title="Sync status"><i></i><span>Starting…</span></span>
+    <div class="wide" style="display:flex;gap:8px;flex-wrap:wrap"><button class="iconbtn" id="settings-btn" type="button" title="Settings" aria-label="Settings">⚙</button><button class="btn" id="import-btn" type="button" title="Paste items someone sent you">⇩ Import</button><button class="btn" id="send-all" type="button" title="Send all tiles">✉ Send board</button></div>
   </header>
 
   <form class="add" id="addform" autocomplete="off">
@@ -1153,10 +1182,12 @@ $("#set-test").addEventListener("click",()=>{
 
 // sync status pill + banner
 window.fubSync.onStatus((st,pending)=>{
-  const pill=$("#syncpill"); pill.className="syncpill "+st.state;
+  const pill=$("#syncpill"); pill.className="syncpill wide "+st.state;
   const t=st.state==="ok"?"Synced "+(st.last?st.last.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"")
     :st.state==="syncing"?"Syncing…":st.state==="offline"?"Offline"+(pending?" · "+pending+" waiting":""):st.state==="error"?"Sync problem":"Not connected";
   pill.querySelector("span").textContent=t; pill.title=st.msg||t;
+  const ms=$("#menu-sync"); ms.className="syncpill "+st.state; ms.querySelector("span").textContent=t; ms.title=st.msg||t;
+  $("#menu-dot").className="mdot "+st.state;
   const showBanner=st.state==="error"||(st.state==="idle"&&!window.fubSync.conn);
   $("#banner").hidden=!showBanner; $("#banner-text").textContent=st.msg||"";
 });
@@ -1189,12 +1220,24 @@ if(window.fubSync.platform==="desktop"){
 
 // Android back button: close whatever is open first
 window.__back=()=>{
+  if(!$("#menu").hidden){closeMenu();return true}
   for(const id of ["#setscrim","#iscrim","#sscrim","#gscrim"]) if(!$(id).hidden){$(id).hidden=true;return true}
   if(!$("#scrim").hidden){closeEditor();return true}
   if(personFilter||statFilter){personFilter=null;statFilter=null;render();return true}
   return false;
 };
 if(!window.fubSync.conn) setTimeout(()=>openSettings(true),300);
+
+// --- phone menu ---
+const closeMenu=()=>{$("#menu").hidden=true;$("#menu-btn").setAttribute("aria-expanded","false")};
+$("#menu-btn").addEventListener("click",e=>{e.stopPropagation();const open=$("#menu").hidden;$("#menu").hidden=!open;$("#menu-btn").setAttribute("aria-expanded",String(open))});
+$("#menu").addEventListener("click",e=>{
+  e.stopPropagation();
+  const b=e.target.closest("[data-menu]"); if(b){closeMenu();$(b.dataset.menu).click();return}
+  if(e.target.closest("#menu-syncnow")){window.fubSync.refresh();toast("Syncing…")}
+});
+document.addEventListener("click",()=>{if(!$("#menu").hidden)closeMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#menu").hidden)closeMenu()});
 
 // --- app updates ---
 // Android asks GitHub for a newer build; Windows downloads it in the background and installs on restart.
