@@ -61,13 +61,17 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
+          npm version "2.0.${{ github.run_number }}" --no-git-tag-version --allow-same-version
           npm install --no-audit --no-fund
-          npm run dist
+          npx electron-builder --win nsis --publish never -c.publish.owner="${{ github.repository_owner }}" -c.publish.repo="${{ github.event.repository.name }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          path: desktop/dist/Follow-Up-Board-Setup.exe
+          path: |
+            desktop/dist/Follow-Up-Board-Setup.exe
+            desktop/dist/Follow-Up-Board-Setup.exe.blockmap
+            desktop/dist/latest.yml
 
   release:
     name: Publish downloads
@@ -81,12 +85,15 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
+          tag_name: v2.0.${{ github.run_number }}
           name: Follow-Up Board build ${{ github.run_number }}
           make_latest: true
           body: |
             **Phone:** download Follow-Up-Board.apk on your Android phone and open it to install or update.
             **Windows:** download Follow-Up-Board-Setup.exe and run it.
+            Once installed, both apps let you know about newer builds themselves.
           files: |
             out/Follow-Up-Board.apk
             out/Follow-Up-Board-Setup.exe
+            out/Follow-Up-Board-Setup.exe.blockmap
+            out/latest.yml
