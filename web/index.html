@@ -543,7 +543,8 @@ const COLS=[
   {id:"short",name:"Short Term",hint:"Next few weeks"},
   {id:"medium",name:"Medium Term",hint:"This quarter"},
   {id:"long",name:"Long Term",hint:"Someday / big projects"},
-  {id:"smt",name:"Report to SMT",hint:"Bring to senior management"}
+  {id:"smt",name:"Report to SMT",hint:"Bring to senior management"},
+  {id:"na",name:"N/A",hint:"No priority set yet"}
 ];
 const STATUS=[{id:"queued",name:"Queued"},{id:"wip",name:"In progress"},{id:"waiting",name:"Waiting on them"},{id:"done",name:"Done"}];
 const $=s=>document.querySelector(s);
@@ -582,7 +583,8 @@ let db=null, tasksCol=null, peopleCol=null, canWrite=true;
 try{const v=localStorage.getItem("fub.view");if(v==="people"||v==="board")view=v}catch(e){}
 
 $("#today").textContent=nice(TODAY)+", "+parse(TODAY).getFullYear();
-$("#add-col").innerHTML=COLS.map(c=>`<option value="${c.id}">${c.name}</option>`).join("");
+$("#add-col").innerHTML=[COLS.find(c=>c.id==="na"),...COLS.filter(c=>c.id!=="na")].map(c=>`<option value="${c.id}">${c.id==="na"?"Priority: N/A":c.name}</option>`).join("");
+$("#add-col").value="na";
 
 function allPeople(){
   const s=new Map();
@@ -618,8 +620,8 @@ function sortTasks(a,b){
 }
 
 // --- render ---
-const SHORT={immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"SMT report"};
-const prioBadge=t=>{const c=t.col||"immediate";return `<span class="prio p-${c}" title="Priority: ${esc(SHORT[c])}"><i></i>${esc(SHORT[c])}</span>`};
+const SHORT={na:"N/A",immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"SMT report"};
+const prioBadge=t=>{const c=t.col||"immediate";if(c==="na")return "";return `<span class="prio p-${c}" title="Priority: ${esc(SHORT[c])}"><i></i>${esc(SHORT[c])}</span>`};
 function cardHTML(t,opts={}){
   const f=fuInfo(t);
   const isDue=f&&f.n<=0, noDate=t.status!=="done"&&!t.followUp;
@@ -962,15 +964,15 @@ function parseImport(text){
   const PRV=Object.fromEntries(Object.entries(PRN).map(([k,v])=>[v.toLowerCase(),k]));
   const structured=lines.some(l=>/^\s*•\s+/.test(l));
   if(!structured){
-    for(const l of lines){const v=l.trim().replace(/^[-*•]\s+/,""); if(!v)continue; const {people,title,notes}=parseAdd(v); if(title) items.push({title,people,col:"immediate",status:"queued",followUp:null,notes})}
+    for(const l of lines){const v=l.trim().replace(/^[-*•]\s+/,""); if(!v)continue; const {people,title,notes}=parseAdd(v); if(title) items.push({title,people,col:"na",status:"queued",followUp:null,notes})}
     return {items,groupsFound,names};
   }
-  let people=[], col="immediate", last=null;
+  let people=[], col="na", last=null;
   for(let i=0;i<lines.length;i++){
     const raw=lines[i], l=raw.trim();
     if(!l){continue}
     if(/^Follow-up (items|board) as of/i.test(l))continue;
-    if(i+1<lines.length&&/^-{2,}$/.test(lines[i+1].trim())){const tt=parseTileTitle(l);people=tt.people;if(tt.groupName)groupsFound.push({name:tt.groupName,members:tt.people});if(tt.name)names[tt.people[0]]=tt.name;col="immediate";last=null;i++;continue}
+    if(i+1<lines.length&&/^-{2,}$/.test(lines[i+1].trim())){const tt=parseTileTitle(l);people=tt.people;if(tt.groupName)groupsFound.push({name:tt.groupName,members:tt.people});if(tt.name)names[tt.people[0]]=tt.name;col="na";last=null;i++;continue}
     if(PRV[l.toLowerCase()]){col=PRV[l.toLowerCase()];last=null;continue}
     if(l==="(nothing open)")continue;
     const m=raw.match(/^\s*•\s+(.*)$/);
@@ -1013,7 +1015,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#iscrim").hidde
 
 // --- send tiles ---
 let sendKeys=null, sopt={notes:true,done:false};
-const PRN={immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"Report to SMT"};
+const PRN={na:"No priority",immediate:"Immediate",short:"Short term",medium:"Medium term",long:"Long term",smt:"Report to SMT"};
 function tileText(pk){
   const tm=tileMap.get(pk); if(!tm)return "";
   const list=tm.all.filter(t=>sopt.done||t.status!=="done").sort(sortTasks);
