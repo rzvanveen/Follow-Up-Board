@@ -98,6 +98,7 @@ header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-b
 .stat.today b{background:var(--due-soft);color:var(--due)}
 .stat.week b{background:var(--accent-soft);color:var(--accent)}
 .stat.wip b{background:var(--wip-soft);color:var(--wip)}
+.stat.done b{background:var(--ok-soft);color:var(--ok)}
 .stat[aria-pressed="true"]{border-color:var(--ink)}
 
 .people{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:16px}
@@ -207,6 +208,7 @@ button.pchip{cursor:pointer}
 .fu{font-family:var(--mono);font-size:11.5px;font-weight:600;border-radius:5px;padding:2px 7px;background:var(--panel);color:var(--muted);display:inline-flex;gap:4px;align-items:center}
 .fu.overdue{background:var(--overdue-soft);color:var(--overdue)}
 .fu.today{background:var(--due-soft);color:var(--due)}
+.fu.done{background:var(--ok-soft);color:var(--ok)}
 .fu.soon{background:var(--accent-soft);color:var(--accent)}
 .age{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto}
 .quick{display:flex;gap:4px;margin-left:auto}
@@ -602,6 +604,7 @@ function matches(t){
     if(statFilter==="week") return f&&f.n>=0&&f.n<=7;
     if(statFilter==="wip") return t.status==="wip";
     if(statFilter==="nodate") return t.status!=="done"&&!t.followUp;
+    if(statFilter==="done") return t.status==="done";
   }
   return true;
 }
@@ -628,7 +631,7 @@ function cardHTML(t,opts={}){
   const cls=["card",t.status==="done"?"done":"",isDue?"due":"",noDate?"nodate":""].join(" ");
   const st=t.status==="wip"?'<span class="pill wip">WIP</span>':t.status==="waiting"?'<span class="pill waiting">WAITING</span>':"";
   const age=t.created?diffDays(TODAY,t.created.slice(0,10)):0;
-  const fu=f?`<span class="fu ${f.cls}" title="Follow up ${esc(nice(t.followUp))}">↻ ${esc(f.txt)}</span>`:(t.status!=="done"?'<span class="fu" title="No follow-up date">↻ —</span>':"");
+  const fu=f?`<span class="fu ${f.cls}" title="Follow up ${esc(nice(t.followUp))}">↻ ${esc(f.txt)}</span>`:(t.status!=="done"?'<span class="fu" title="No follow-up date">↻ —</span>':(t.completedAt?`<span class="fu done" title="Finished">✓ ${esc(nice(t.completedAt.slice(0,10)))}</span>`:""));
   const quick=`<span class="age" title="Days on the list">${age>0?age+"d":"new"}</span>`;
   const nb=(v,l,ttl)=>`<button type="button" data-next="${v}" title="${ttl}">${l}</button>`;
   const act=isDue?`<div class="act"><span class="lbl">Followed up? Next:</span>${nb("1","Tomorrow","Follow up again tomorrow")}${nb("mon","Mon","Follow up again next Monday")}${nb("7","+1 wk","Follow up again in a week")}${nb("pick","📅","Pick a date")}<button type="button" class="ok" data-actdone title="Mark done">✓ Done</button></div>`
@@ -649,8 +652,9 @@ function render(){
   TODAY=ymd(new Date());
   // summary
   const o=openTasks();
-  const cnt=k=>o.filter(t=>{const f=fuInfo(t);return k==="due"?f&&f.n<=0:k==="week"?f&&f.n>0&&f.n<=7:k==="nodate"?!t.followUp:t.status==="wip"}).length;
-  $("#summary").innerHTML=[["due","Follow up now"],["nodate","No date set"],["week","Coming up (7 days)"],["wip","In progress"]]
+  const doneCount=[...tasks.values()].filter(t=>t.status==="done").length;
+  const cnt=k=>k==="done"?doneCount:o.filter(t=>{const f=fuInfo(t);return k==="due"?f&&f.n<=0:k==="week"?f&&f.n>0&&f.n<=7:k==="nodate"?!t.followUp:t.status==="wip"}).length;
+  $("#summary").innerHTML=[["due","Follow up now"],["nodate","No date set"],["week","Coming up (7 days)"],["wip","In progress"],["done","Done"]]
     .filter(([k])=>cnt(k)>0||statFilter===k)
     .map(([k,l])=>`<button class="stat ${k}" data-stat="${k}" aria-pressed="${statFilter===k}"><b>${cnt(k)}</b>${l}</button>`).join("");
   // people bar
@@ -683,7 +687,7 @@ function render(){
         hint:"",all,keep:!!g});
     }
     if(!personFilter) groups.push({key:"p:",pk:"",title:"My own items",members:[],cls:"",head:`<span class="nm">Me / unassigned</span>`,hint:"",all:[...tasks.values()].filter(t=>!(t.people||[]).length&&matches(t)),keep:true});
-    groups=groups.filter(g=>g.keep||g.all.some(t=>t.status!=="done"));
+    groups=statFilter==="done"?groups.filter(g=>g.all.length):groups.filter(g=>g.keep||g.all.some(t=>t.status!=="done"));
     tileMap=new Map(groups.map(g=>[g.pk,{title:g.title,all:g.all}]));
     allKeys=groups.map(g=>g.pk);
     const ord=fullOrder(); groups.sort((a,b)=>ord.indexOf(a.pk)-ord.indexOf(b.pk));
@@ -693,8 +697,10 @@ function render(){
   }
   const tiles=view==="people";
   main.innerHTML=`<div class="${tiles?"tiles":"board"}">`+groups.map((g,i)=>{
-    const open=g.all.filter(t=>t.status!=="done").sort(sortTasks);
-    const done=g.all.filter(t=>t.status==="done").sort((a,b)=>(b.completedAt||"").localeCompare(a.completedAt||""));
+    const doneMode=statFilter==="done";
+    let open=g.all.filter(t=>t.status!=="done").sort(sortTasks);
+    let done=g.all.filter(t=>t.status==="done").sort((a,b)=>(b.completedAt||"").localeCompare(a.completedAt||""));
+    if(doneMode){open=done;done=[];}
     const sd=showDone.has(g.key);
     const mvb=(d,ic,l)=>`<button class="mv" data-mv="${d}" data-pk="${esc(g.pk)}" title="${l}" aria-label="${l}">${ic}</button>`;
     const tools=tiles?`<span class="tools"><button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
@@ -702,7 +708,7 @@ function render(){
     return `<section class="col ${g.cls||""}" style="${g.style||""}" ${attr}>
       <h2 ${tiles?`draggable="true" data-grip="${esc(g.pk)}" title="Drag to move this tile"`:""}><span class="hd">${g.head}<span class="ct">${open.length}</span></span>${tools}</h2>
       ${g.hint?`<div class="hint">${g.hint}</div>`:""}
-      ${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||'<div class="empty">Nothing open. Drag a card here or add one above.</div>'}
+      ${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||(doneMode?'<div class="empty">Nothing finished here yet.</div>':'<div class="empty">Nothing open. Drag a card here or add one above.</div>')}
       ${done.length?`<button class="donebar" data-showdone="${esc(g.key)}">${sd?"▾":"▸"} Done (${done.length})</button>${sd?done.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:true})).join(""):""}`:""}
     </section>`;
   }).join("")+`</div>`+(groups.length?"":'<div class="empty">No items match.</div>');
