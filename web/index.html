@@ -648,7 +648,10 @@ function cardHTML(t,opts={}){
   </div>`;
 }
 
+let renderLater=null;
 function render(){
+  // Don't rebuild the board under a drag in progress (a background sync would drop the dragged card); try again shortly.
+  if(document.querySelector(".card.dragging, .col.lifting")){clearTimeout(renderLater);renderLater=setTimeout(render,400);return}
   TODAY=ymd(new Date());
   // summary
   const o=openTasks();
@@ -872,6 +875,8 @@ function fullOrder(){
   return [...known,...rest];
 }
 let colDrag=null;
+// Read what is actually being dragged, so a leftover id from an earlier drag can never be applied.
+const dtText=e=>{try{return e.dataTransfer.getData("text/plain")}catch(_){return ""}};
 const clearIns=()=>document.querySelectorAll(".ins-before,.ins-after,.ins-end").forEach(x=>x.classList.remove("ins-before","ins-after","ins-end"));
 function dropTarget(e){
   const mc=e.target.closest&&e.target.closest(".mcol"); if(!mc)return null;
@@ -880,10 +885,10 @@ function dropTarget(e){
   if(tile)return {mc,self:true};
   return {mc,end:true};
 }
-document.addEventListener("dragstart",e=>{const g=e.target.closest&&e.target.closest("[data-grip]");if(!g)return;colDrag=g.dataset.grip;g.closest(".col").classList.add("lifting");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain","tile")}catch(_){}});
+document.addEventListener("dragstart",e=>{const g=e.target.closest&&e.target.closest("[data-grip]");if(!g)return;dragId=null;colDrag=g.dataset.grip;g.closest(".col").classList.add("lifting");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain","tile")}catch(_){}});
 document.addEventListener("dragover",e=>{if(colDrag===null)return;const d=dropTarget(e);if(!d)return;e.preventDefault();clearIns();if(d.self)return;
   if(d.end)d.mc.classList.add("ins-end");else d.tile.classList.add(d.before?"ins-before":"ins-after")});
-document.addEventListener("drop",e=>{if(colDrag===null)return;const d=dropTarget(e);e.preventDefault();const key=colDrag;colDrag=null;clearIns();if(!d||d.self)return;
+document.addEventListener("drop",e=>{if(colDrag===null)return;document.querySelectorAll(".lifting").forEach(x=>x.classList.remove("lifting"));if(dtText(e)!=="tile"){colDrag=null;clearIns();return}const d=dropTarget(e);e.preventDefault();const key=colDrag;colDrag=null;clearIns();if(!d||d.self)return;
   const ci=+d.mc.dataset.ci;
   if(d.end){placeTile(key,ci,null);return}
   if(d.before){placeTile(key,ci,d.tile.dataset.personCol);return}
@@ -891,10 +896,10 @@ document.addEventListener("drop",e=>{if(colDrag===null)return;const d=dropTarget
   placeTile(key,ci,nx?nx.dataset.personCol:null)});
 document.addEventListener("dragend",()=>{colDrag=null;clearIns();document.querySelectorAll(".lifting").forEach(x=>x.classList.remove("lifting"))});
 let dragFrom=null;
-document.addEventListener("dragstart",e=>{const c=e.target.closest&&e.target.closest(".card[draggable=true]");if(!c)return;dragId=c.dataset.id;const sc=c.closest(".col");dragFrom=sc&&sc.dataset.personCol!==undefined?sc.dataset.personCol:null;c.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",dragId)}catch(_){}});
+document.addEventListener("dragstart",e=>{const c=e.target.closest&&e.target.closest(".card[draggable=true]");if(!c)return;colDrag=null;dragId=c.dataset.id;const sc=c.closest(".col");dragFrom=sc&&sc.dataset.personCol!==undefined?sc.dataset.personCol:null;c.classList.add("dragging");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain","card:"+dragId)}catch(_){}});
 document.addEventListener("dragend",e=>{document.querySelectorAll(".dragging,.drop").forEach(x=>x.classList.remove("dragging","drop"));dragId=null});
 document.addEventListener("dragover",e=>{const col=e.target.closest&&e.target.closest(".col");if(!col||!dragId||colDrag!==null)return;e.preventDefault();document.querySelectorAll(".col.drop").forEach(x=>x!==col&&x.classList.remove("drop"));col.classList.add("drop")});
-document.addEventListener("drop",e=>{const col=e.target.closest&&e.target.closest(".col");if(!col||!dragId)return;e.preventDefault();const t=tasks.get(dragId);if(!t)return;
+document.addEventListener("drop",e=>{const id=dragId;dragId=null;document.querySelectorAll(".dragging,.drop").forEach(x=>x.classList.remove("dragging","drop"));const col=e.target.closest&&e.target.closest(".col");if(!col||!id)return;if(dtText(e)!=="card:"+id)return;e.preventDefault();const t=tasks.get(id);if(!t)return;
   if(col.dataset.col!==undefined){if(t.col!==col.dataset.col)saveTask({...t,col:col.dataset.col,updated:now()});return}
   if(col.dataset.members!==undefined){const ppl=col.dataset.members?col.dataset.members.split(","):[];if(mkey(ppl)===mkey(t.people))return;saveTask({...t,people:ppl,updated:now()});const g=groupFor(mkey(ppl));toast(ppl.length?"Assigned to "+(g?g.name:ppl.join(" + ")):"Unassigned")}});
 
