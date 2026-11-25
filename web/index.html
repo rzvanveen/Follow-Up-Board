@@ -146,15 +146,21 @@ button.pchip{cursor:pointer}
 .tiles .col:hover h2 .tools,.tiles .col:focus-within h2 .tools{opacity:1}
 .tiles .col h2 .mv{font-size:11px;padding:1px 4px}
 .tiles .col h2 .grip{font-size:13px}
-/* tile width: a 2-wide tile sits in its own column and reaches over the next one (packTiles keeps that column clear below it) */
+/* tile width: a wide tile sits in its own column and reaches over the next ones (packTiles keeps those columns clear below it).
+   --span is set per tile by packTiles; drag the handle on a tile's right edge to change it. */
 .cards{display:flex;flex-direction:column;gap:8px}
-.tiles .col.wide{width:calc(200% + 12px);z-index:1}
-.tiles .col.wide .cards{display:block;columns:2;column-gap:10px}
+.tiles .col.wide{width:calc(var(--span,2) * 100% + (var(--span,2) - 1) * 12px);z-index:1}
+.tiles .col.wide .cards{display:block;columns:var(--span,2);column-gap:10px}
 .tiles .col.wide .cards>*{break-inside:avoid;margin-bottom:8px}
 .tiles .col.wide .cards>.empty{column-span:all}
-.tiles .col h2 .wbtn{font-size:11px;font-weight:700;font-family:var(--mono);letter-spacing:0}
-.tiles .col h2 .wbtn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
-.tiles.one .wbtn{display:none}
+.rsz{position:absolute;top:10px;bottom:10px;right:-9px;width:14px;cursor:ew-resize;touch-action:none;z-index:2;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.rsz::after{content:"";width:4px;height:36px;max-height:60%;border-radius:2px;background:var(--muted);opacity:0;transition:opacity .12s}
+.rsz.l{right:auto;left:-9px}
+.tiles .col:hover>.rsz::after,.rsz:focus-visible::after,.col.resizing>.rsz::after{opacity:.6}
+.rsz:hover::after,.col.resizing>.rsz::after{opacity:1;background:var(--accent)}
+.col.resizing{outline:2px dashed var(--accent);outline-offset:2px}
+.rsz-tip{position:absolute;top:8px;right:16px;z-index:3;background:var(--ink);color:var(--bg);font:600 12px var(--body);padding:3px 8px;border-radius:6px;pointer-events:none;white-space:nowrap}
+.tiles.one .rsz{display:none}
 .col h2 .nm{font-size:13px;font-weight:700}
 .col h2 .prio{font-size:12px;padding:3px 8px;text-transform:uppercase;letter-spacing:.06em}
 .prio{--pc:var(--muted);display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:5px;padding:2px 7px;background:color-mix(in srgb,var(--pc) 14%,transparent);color:var(--pc);white-space:nowrap}
@@ -660,7 +666,7 @@ function cardHTML(t,opts={}){
 let renderLater=null;
 function render(){
   // Don't rebuild the board under a drag in progress (a background sync would drop the dragged card); try again shortly.
-  if(document.querySelector(".card.dragging, .col.lifting")){clearTimeout(renderLater);renderLater=setTimeout(render,400);return}
+  if(document.querySelector(".card.dragging, .col.lifting, .col.resizing")){clearTimeout(renderLater);renderLater=setTimeout(render,400);return}
   TODAY=ymd(new Date());
   // summary
   const o=openTasks();
@@ -715,46 +721,59 @@ function render(){
     if(doneMode){open=done;done=[];}
     const sd=showDone.has(g.key);
     const mvb=(d,ic,l)=>`<button class="mv" data-mv="${d}" data-pk="${esc(g.pk)}" title="${l}" aria-label="${l}">${ic}</button>`;
-    const isWide=tiles&&wideKeys.has(g.pk);
-    const wbtn=tiles?`<button class="mv wbtn" data-wide="${esc(g.pk)}" aria-pressed="${isWide}" title="${isWide?"Make this tile 1 column wide":"Make this tile 2 columns wide"}" aria-label="${isWide?"Make this tile 1 column wide":"Make this tile 2 columns wide"}">${isWide?"1×":"2×"}</button>`:"";
-    const tools=tiles?`<span class="tools">${wbtn}<button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
+    const rsz=tiles?`<div class="rsz l" data-rsz="${esc(g.pk)}" data-side="l" aria-hidden="true" title="Drag to make this tile wider or narrower (double-click: back to 1 column)"></div><div class="rsz" data-rsz="${esc(g.pk)}" data-side="r" role="slider" tabindex="0" aria-label="Tile width in columns" aria-valuemin="1" aria-valuenow="${spanOf(g.pk)}" title="Drag to make this tile wider or narrower (double-click: back to 1 column)"></div>`:"";
+    const tools=tiles?`<span class="tools"><button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
     const attr=tiles?`data-person-col="${esc(g.pk)}" data-members="${esc((g.members||[]).join(","))}"`:g.attr;
-    return `<section class="col ${g.cls||""}${isWide?" wide":""}" style="${g.style||""}" ${attr}>
+    return `<section class="col ${g.cls||""}" style="${g.style||""}" ${attr}>${rsz}
       <h2 ${tiles?`draggable="true" data-grip="${esc(g.pk)}" title="Drag to move this tile"`:""}><span class="hd">${g.head}<span class="ct">${open.length}</span></span>${tools}</h2>
       ${g.hint?`<div class="hint">${g.hint}</div>`:""}
       <div class="cards">${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||(doneMode?'<div class="empty">Nothing finished here yet.</div>':'<div class="empty">Nothing open. Drag a card here or add one above.</div>')}</div>
       ${done.length?`<button class="donebar" data-showdone="${esc(g.key)}">${sd?"▾":"▸"} Done (${done.length})</button>${sd?`<div class="cards">${done.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:true})).join("")}</div>`:""}`:""}
     </section>`;
   }).join("")+`</div>`+(groups.length?"":'<div class="empty">No items match.</div>');
-  if(tiles) packTiles();
+  if(tiles){packTiles();refocusRsz()}
 }
 // Tiles live in columns you arrange. Anything not placed yet drops into the shortest column.
-let layoutCols=null, packedCols=0, wideKeys=new Set();
+let layoutCols=null, packedCols=0, spans=new Map();
 const colCount=w=>Math.max(1,Math.floor((w+12)/(300+12)));
 const GAP=12;
+const spanOf=k=>spans.get(k)||1;
+// How many columns a tile covers on this screen: its saved width, but never more than fit.
+function applySpan(t,s){
+  t.classList.toggle("wide",s>1);
+  if(s>1)t.style.setProperty("--span",s);else t.style.removeProperty("--span");
+  const h=t.querySelector(":scope>.rsz[role]"); if(h)h.setAttribute("aria-valuenow",s);
+}
+let rszState=null; // the tile being resized right now, and the width it's being dragged to
+const tileSpan=t=>Math.min(rszState&&rszState.tile===t?rszState.s:spanOf(t.dataset.personCol),Math.max(packedCols,1));
 function packTiles(){
   const wrap=document.querySelector("#main .tiles"); if(!wrap)return;
   const list=[...wrap.children]; const byKey=new Map(list.map(t=>[t.dataset.personCol,t]));
   const n=colCount(wrap.clientWidth); packedCols=n;
   wrap.classList.add("masonry"); wrap.classList.toggle("one",n<2);
   // Fewer than 2 columns (phone, narrow window): every tile is 1 wide.
-  if(n<2) list.forEach(t=>t.classList.remove("wide"));
+  list.forEach(t=>{applySpan(t,tileSpan(t));t.querySelector(":scope>.rsz[role]")?.setAttribute("aria-valuemax",n)});
   const cols=Array.from({length:n},(_,i)=>{const c=document.createElement("div");c.className="mcol";c.dataset.ci=i;wrap.appendChild(c);return c});
   if(layoutCols) layoutCols.forEach((col,i)=>{const tgt=cols[i%n];for(const k of col){const t=byKey.get(k);if(t){tgt.appendChild(t);byKey.delete(k)}}});
-  // A wide tile can't start in the last column; show it one column to the left, at the same spot in the list.
-  if(n>=2) for(const t of [...cols[n-1].children]) if(t.classList.contains("wide")){
-    const idx=[...cols[n-1].children].indexOf(t), dst=cols[n-2]; dst.insertBefore(t,dst.children[idx]||null);
-  }
   const fill=c=>[...c.children].reduce((h,x)=>h+x.offsetHeight+GAP,0);
   for(const t of byKey.values()){
-    let best=cols[0];for(const c of cols) if(fill(c)<fill(best)-1) best=c;
-    if(t.classList.contains("wide")&&best===cols[n-1]) best=cols[n-2];
+    const last=n-tileSpan(t);
+    let best=cols[0];for(const c of cols.slice(0,last+1)) if(fill(c)<fill(best)-1) best=c;
     best.appendChild(t)}
   if(n>=2&&wrap.querySelector(".col.wide")) stackWide(cols);
 }
-// Work out where each tile lands when some are 2 wide, then push tiles down (margin-top) so nothing sits under a wide tile.
-// Always fill the shortest column next; a wide tile starts below whatever is in both of its columns.
+// A wide tile must start far enough left to fit; move any that don't, keeping their spot in the list.
+function fitWide(cols){
+  const n=cols.length;
+  for(let i=n-1;i>0;i--) for(const t of [...cols[i].children]){
+    const s=tileSpan(t); if(i+s<=n)continue;
+    const idx=[...cols[i].children].indexOf(t), dst=cols[n-s]; dst.insertBefore(t,dst.children[idx]||null);
+  }
+}
+// Work out where each tile lands when some are wide, then push tiles down (margin-top) so nothing sits under a wide tile.
+// Always fill the shortest column next; a wide tile starts below whatever is in all of its columns.
 function stackWide(cols){
+  fitWide(cols);
   // h = lowest point used in each column (including what a wide tile covers); flow = where the column's own next tile would sit.
   const n=cols.length, h=new Array(n).fill(0), flow=new Array(n).fill(0), p=new Array(n).fill(0);
   const items=cols.map(c=>[...c.children]); items.flat().forEach(t=>t.style.marginTop="");
@@ -762,10 +781,10 @@ function stackWide(cols){
   for(;;){
     let c=-1; for(let i=0;i<n;i++) if(p[i]<items[i].length&&(c<0||h[i]<h[c]-0.5)) c=i;
     if(c<0)break;
-    const t=items[c][p[c]], th=ht[c][p[c]], wide=t.classList.contains("wide")&&c<n-1;
-    const y=wide?Math.max(h[c],h[c+1]):h[c];
+    const t=items[c][p[c]], th=ht[c][p[c]], s=Math.min(tileSpan(t),n-c);
+    const y=Math.max(...h.slice(c,c+s));
     if(y>flow[c]+0.5) t.style.marginTop=(y-flow[c])+"px";
-    flow[c]=h[c]=y+th+GAP; if(wide) h[c+1]=h[c];
+    flow[c]=y+th+GAP; for(let i=c;i<c+s;i++) h[i]=flow[c];
     p[c]++;
   }
 }
@@ -775,23 +794,19 @@ function currentCols(){
   if(layoutCols){const shown=new Set(d.flat());layoutCols.forEach((col,i)=>col.forEach(k=>{if(!shown.has(k)){shown.add(k);d[Math.min(i,d.length-1)].push(k)}}))}
   return d;
 }
-// The layout setting holds the columns and which tiles are 2 wide, so both sync to every device together.
-const layoutBody=()=>({cols:(layoutCols||[]).map(k=>({k})),wide:[...wideKeys]});
+// The layout setting holds the columns and each wide tile's width, so both sync to every device together.
+// "wide" (tiles 2+ columns wide) is kept for app builds from before "span" existed.
+const layoutBody=()=>({cols:(layoutCols||[]).map(k=>({k})),span:Object.fromEntries(spans),wide:[...spans.keys()]});
 async function saveLayout(cols){
   while(cols.length>1&&!cols[cols.length-1].length) cols.pop();
   layoutCols=cols; render();
   if(layoutDoc) try{await layoutDoc.set(layoutBody())}catch(e){toast("Couldn't save the layout.")}
 }
-function toggleWide(key){
-  const cols=currentCols();
-  if(wideKeys.has(key)) wideKeys.delete(key);
-  else{
-    wideKeys.add(key);
-    // starting in the last column would leave no room to grow, so move it one column left
-    const n=Math.max(packedCols,1), ci=cols.findIndex(c=>c.includes(key));
-    if(n>=2&&ci>=n-1){const idx=cols[ci].indexOf(key);cols[ci].splice(idx,1);while(cols.length<n-1)cols.push([]);cols[n-2].splice(Math.min(idx,cols[n-2].length),0,key)}
-  }
-  saveLayout(cols);
+function setSpan(key,s){
+  s=Math.max(1,Math.round(s)||1);
+  if(s===spanOf(key)){render();return}
+  if(s>1)spans.set(key,s);else spans.delete(key);
+  saveLayout(currentCols());
 }
 function placeTile(key,ci,beforeKey){
   const cols=currentCols().map(c=>c.filter(k=>k!==key));
@@ -807,6 +822,59 @@ function nudgeTile(key,dir){
   if(dir==="down"){if(idx<cols[ci].length-1)placeTile(key,ci,cols[ci][idx+2]??null);return}
   const nc=ci+(dir==="left"?-1:1); if(nc<0||nc>=n)return;
   const rest=(cols[nc]||[]); placeTile(key,nc,rest[idx]??null);
+}
+// --- resize a tile: drag the handle on its right edge; it snaps to whole columns ---
+const plural=s=>s+" column"+(s>1?"s":"");
+document.addEventListener("pointerdown",e=>{
+  const hd=e.target.closest&&e.target.closest(".rsz"); if(!hd||e.button>0)return;
+  const tile=hd.closest(".col"), mc=tile&&tile.parentElement; if(!mc||!mc.classList.contains("mcol"))return;
+  e.preventDefault();
+  const ci=+mc.dataset.ci, n=Math.max(packedCols,1), s0=tileSpan(tile);
+  const gridLeft=document.querySelector('#main .mcol[data-ci="0"]').getBoundingClientRect().left;
+  // Right handle: the left edge stays put. Left handle: the right edge stays put and the tile moves into the column under the pointer.
+  rszState={tile,key:tile.dataset.personCol,id:e.pointerId,side:hd.dataset.side,ci,end:ci+s0,n,gridLeft,
+    colW:mc.getBoundingClientRect().width,home:mc,next:tile.nextElementSibling,s:s0,start:ci};
+  try{hd.setPointerCapture(e.pointerId)}catch(_){}
+  tile.classList.add("resizing");
+  const tip=document.createElement("div");tip.className="rsz-tip";tip.textContent=plural(s0);tile.appendChild(tip);rszState.tip=tip;
+});
+document.addEventListener("pointermove",e=>{
+  const r=rszState; if(!r||e.pointerId!==r.id)return;
+  const step=r.colW+GAP, x=e.clientX-r.gridLeft;
+  let start=r.ci, s;
+  if(r.side==="l"){start=Math.min(r.end-1,Math.max(0,Math.round(x/step)));s=r.end-start}
+  else s=Math.min(r.n-r.ci,Math.max(1,Math.round((x+GAP)/step)-r.ci));
+  if(s===r.s&&start===r.start)return;
+  r.s=s; r.start=start; applySpan(r.tile,s); r.tip.textContent=plural(s);
+  const cols=[...document.querySelectorAll("#main .mcol")];
+  if(start===r.ci){ if(r.tile.parentElement!==r.home) r.home.insertBefore(r.tile,r.next&&r.next.parentElement===r.home?r.next:null) }
+  else{ // put it in the new column, at about the same height as before
+    const top=r.tile.getBoundingClientRect().top, dst=cols[start];
+    const before=[...dst.children].find(t=>t!==r.tile&&t.getBoundingClientRect().top>top);
+    dst.insertBefore(r.tile,before||null);
+  }
+  stackWide(cols);
+});
+function endResize(e){
+  const r=rszState; if(!r||(e&&e.pointerId!==r.id))return;
+  r.tile.classList.remove("resizing"); r.tip.remove(); rszState=null;
+  setSpan(r.key,r.s);
+}
+document.addEventListener("pointerup",endResize);
+document.addEventListener("pointercancel",endResize);
+document.addEventListener("dblclick",e=>{const hd=e.target.closest&&e.target.closest(".rsz");if(hd)setSpan(hd.dataset.rsz,1)});
+document.addEventListener("keydown",e=>{
+  const hd=e.target.closest&&e.target.closest(".rsz"); if(!hd)return;
+  const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0; if(!d)return;
+  e.preventDefault(); const key=hd.dataset.rsz; rszFocus=key;
+  setSpan(key,Math.min(Math.max(packedCols,1),spanOf(key)+d));
+});
+// Keep keyboard focus on the handle across re-renders (the board is rebuilt after every change).
+let rszFocus=null;
+document.addEventListener("focusin",e=>{if(!(e.target.closest&&e.target.closest(".rsz")))rszFocus=null});
+function refocusRsz(){
+  if(rszFocus===null||(document.activeElement&&document.activeElement!==document.body))return;
+  const h=[...document.querySelectorAll("#main .rsz[role]")].find(x=>x.dataset.rsz===rszFocus); if(h)h.focus();
 }
 let rsz;window.addEventListener("resize",()=>{clearTimeout(rsz);rsz=setTimeout(()=>{if(view!=="people")return;const w=document.querySelector("#main .tiles");if(!w)return;if(colCount(w.clientWidth)!==packedCols)render()},120)});
 
@@ -871,7 +939,6 @@ document.addEventListener("click",e=>{
   if(el.closest("[data-newgroup]")){openGroup(null);return}
   const ge=el.closest("[data-editgroup]"); if(ge){openGroup(ge.dataset.editgroup);return}
   const sdb=el.closest("[data-send]"); if(sdb){openSend([sdb.dataset.send]);return}
-  const wb=el.closest("[data-wide]"); if(wb){toggleWide(wb.dataset.wide);return}
   const mv=el.closest("[data-mv]"); if(mv){nudgeTile(mv.dataset.pk,mv.dataset.mv);return}
   const st=el.closest("[data-stat]"); if(st){statFilter=statFilter===st.dataset.stat?null:st.dataset.stat;render();return}
   const pp=el.closest("#peoplebar [data-person], #main [data-person]"); if(pp){personFilter=personFilter===pp.dataset.person?null:pp.dataset.person;render();return}
@@ -1162,9 +1229,9 @@ $("#g-save").addEventListener("click",async()=>{
   groupDocs.set(id,{name,members:nk.split("+")});
   // keep the tile's place in the layout and move its items along with it
   if(oldKey&&oldKey!==nk){order=order.map(x=>x==="g:"+oldKey?"g:"+nk:x);if(layoutCols)layoutCols=layoutCols.map(c=>c.map(x=>x==="g:"+oldKey?"g:"+nk:x));
-    if(wideKeys.delete("g:"+oldKey)) wideKeys.add("g:"+nk);
+    if(spans.has("g:"+oldKey)){spans.set("g:"+nk,spans.get("g:"+oldKey));spans.delete("g:"+oldKey)}
     for(const t of [...tasks.values()]) if((t.people||[]).length>1&&mkey(t.people)===oldKey) await saveTask({...t,people:nk.split("+"),updated:now()});
-    if(layoutDoc&&(layoutCols||wideKeys.size)) try{await layoutDoc.set(layoutBody())}catch(_){}}
+    if(layoutDoc&&(layoutCols||spans.size)) try{await layoutDoc.set(layoutBody())}catch(_){}}
   render();
   if(groupsCol) try{await groupsCol.doc(id).set({name,members:nk.split("+")})}catch(e){toast("Couldn't save the group.")}
   toast("Saved "+name);
@@ -1343,7 +1410,7 @@ render();
   groupsCol=db.collection("groups");
   groupsCol.onSnapshot(s=>{groupDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed&&!ge)render()},()=>{});
   layoutDoc=db.doc("settings/layout");
-  layoutDoc.onSnapshot(d=>{const v=d.exists?d.data():{};if(Array.isArray(v.order))order=v.order.slice();if(Array.isArray(v.cols))layoutCols=v.cols.map(c=>Array.isArray(c&&c.k)?c.k.slice():[]);wideKeys=new Set(Array.isArray(v.wide)?v.wide.map(String):[]);if(!ed&&!ge&&colDrag===null)render()},()=>{});
+  layoutDoc.onSnapshot(d=>{const v=d.exists?d.data():{};if(Array.isArray(v.order))order=v.order.slice();if(Array.isArray(v.cols))layoutCols=v.cols.map(c=>Array.isArray(c&&c.k)?c.k.slice():[]);spans=new Map();if(Array.isArray(v.wide))v.wide.forEach(k=>spans.set(String(k),2));if(v.span&&typeof v.span==="object")for(const [k,s] of Object.entries(v.span)){const n=Math.round(+s);if(n>1)spans.set(k,n);else spans.delete(k)}if(!ed&&!ge&&colDrag===null&&!rszState)render()},()=>{});
   peopleCol.onSnapshot(s=>{peopleDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed)render()},()=>{});
 })();
 })();
