@@ -146,6 +146,15 @@ button.pchip{cursor:pointer}
 .tiles .col:hover h2 .tools,.tiles .col:focus-within h2 .tools{opacity:1}
 .tiles .col h2 .mv{font-size:11px;padding:1px 4px}
 .tiles .col h2 .grip{font-size:13px}
+/* tile width: a 2-wide tile sits in its own column and reaches over the next one (packTiles keeps that column clear below it) */
+.cards{display:flex;flex-direction:column;gap:8px}
+.tiles .col.wide{width:calc(200% + 12px);z-index:1}
+.tiles .col.wide .cards{display:block;columns:2;column-gap:10px}
+.tiles .col.wide .cards>*{break-inside:avoid;margin-bottom:8px}
+.tiles .col.wide .cards>.empty{column-span:all}
+.tiles .col h2 .wbtn{font-size:11px;font-weight:700;font-family:var(--mono);letter-spacing:0}
+.tiles .col h2 .wbtn[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.tiles.one .wbtn{display:none}
 .col h2 .nm{font-size:13px;font-weight:700}
 .col h2 .prio{font-size:12px;padding:3px 8px;text-transform:uppercase;letter-spacing:.06em}
 .prio{--pc:var(--muted);display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;border-radius:5px;padding:2px 7px;background:color-mix(in srgb,var(--pc) 14%,transparent);color:var(--pc);white-space:nowrap}
@@ -706,29 +715,59 @@ function render(){
     if(doneMode){open=done;done=[];}
     const sd=showDone.has(g.key);
     const mvb=(d,ic,l)=>`<button class="mv" data-mv="${d}" data-pk="${esc(g.pk)}" title="${l}" aria-label="${l}">${ic}</button>`;
-    const tools=tiles?`<span class="tools"><button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
+    const isWide=tiles&&wideKeys.has(g.pk);
+    const wbtn=tiles?`<button class="mv wbtn" data-wide="${esc(g.pk)}" aria-pressed="${isWide}" title="${isWide?"Make this tile 1 column wide":"Make this tile 2 columns wide"}" aria-label="${isWide?"Make this tile 1 column wide":"Make this tile 2 columns wide"}">${isWide?"1×":"2×"}</button>`:"";
+    const tools=tiles?`<span class="tools">${wbtn}<button class="mv sendt" data-send="${esc(g.pk)}" title="Send this tile" aria-label="Send this tile">✉</button><span class="grip" title="Drag to move" aria-hidden="true">⋮⋮</span></span>`:"";
     const attr=tiles?`data-person-col="${esc(g.pk)}" data-members="${esc((g.members||[]).join(","))}"`:g.attr;
-    return `<section class="col ${g.cls||""}" style="${g.style||""}" ${attr}>
+    return `<section class="col ${g.cls||""}${isWide?" wide":""}" style="${g.style||""}" ${attr}>
       <h2 ${tiles?`draggable="true" data-grip="${esc(g.pk)}" title="Drag to move this tile"`:""}><span class="hd">${g.head}<span class="ct">${open.length}</span></span>${tools}</h2>
       ${g.hint?`<div class="hint">${g.hint}</div>`:""}
-      ${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||(doneMode?'<div class="empty">Nothing finished here yet.</div>':'<div class="empty">Nothing open. Drag a card here or add one above.</div>')}
-      ${done.length?`<button class="donebar" data-showdone="${esc(g.key)}">${sd?"▾":"▸"} Done (${done.length})</button>${sd?done.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:true})).join(""):""}`:""}
+      <div class="cards">${open.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:view!=="people"})).join("")||(doneMode?'<div class="empty">Nothing finished here yet.</div>':'<div class="empty">Nothing open. Drag a card here or add one above.</div>')}</div>
+      ${done.length?`<button class="donebar" data-showdone="${esc(g.key)}">${sd?"▾":"▸"} Done (${done.length})</button>${sd?`<div class="cards">${done.map(t=>cardHTML(t,{drag:true,showPrio:view==="people",showPeople:true})).join("")}</div>`:""}`:""}
     </section>`;
   }).join("")+`</div>`+(groups.length?"":'<div class="empty">No items match.</div>');
   if(tiles) packTiles();
 }
 // Tiles live in columns you arrange. Anything not placed yet drops into the shortest column.
-let layoutCols=null, packedCols=0;
+let layoutCols=null, packedCols=0, wideKeys=new Set();
 const colCount=w=>Math.max(1,Math.floor((w+12)/(300+12)));
+const GAP=12;
 function packTiles(){
   const wrap=document.querySelector("#main .tiles"); if(!wrap)return;
   const list=[...wrap.children]; const byKey=new Map(list.map(t=>[t.dataset.personCol,t]));
   const n=colCount(wrap.clientWidth); packedCols=n;
-  wrap.classList.add("masonry");
+  wrap.classList.add("masonry"); wrap.classList.toggle("one",n<2);
+  // Fewer than 2 columns (phone, narrow window): every tile is 1 wide.
+  if(n<2) list.forEach(t=>t.classList.remove("wide"));
   const cols=Array.from({length:n},(_,i)=>{const c=document.createElement("div");c.className="mcol";c.dataset.ci=i;wrap.appendChild(c);return c});
   if(layoutCols) layoutCols.forEach((col,i)=>{const tgt=cols[i%n];for(const k of col){const t=byKey.get(k);if(t){tgt.appendChild(t);byKey.delete(k)}}});
-  const fill=c=>[...c.children].reduce((h,x)=>h+x.offsetHeight+12,0);
-  for(const t of byKey.values()){let best=cols[0];for(const c of cols) if(fill(c)<fill(best)-1) best=c; best.appendChild(t)}
+  // A wide tile can't start in the last column; show it one column to the left, at the same spot in the list.
+  if(n>=2) for(const t of [...cols[n-1].children]) if(t.classList.contains("wide")){
+    const idx=[...cols[n-1].children].indexOf(t), dst=cols[n-2]; dst.insertBefore(t,dst.children[idx]||null);
+  }
+  const fill=c=>[...c.children].reduce((h,x)=>h+x.offsetHeight+GAP,0);
+  for(const t of byKey.values()){
+    let best=cols[0];for(const c of cols) if(fill(c)<fill(best)-1) best=c;
+    if(t.classList.contains("wide")&&best===cols[n-1]) best=cols[n-2];
+    best.appendChild(t)}
+  if(n>=2&&wrap.querySelector(".col.wide")) stackWide(cols);
+}
+// Work out where each tile lands when some are 2 wide, then push tiles down (margin-top) so nothing sits under a wide tile.
+// Always fill the shortest column next; a wide tile starts below whatever is in both of its columns.
+function stackWide(cols){
+  // h = lowest point used in each column (including what a wide tile covers); flow = where the column's own next tile would sit.
+  const n=cols.length, h=new Array(n).fill(0), flow=new Array(n).fill(0), p=new Array(n).fill(0);
+  const items=cols.map(c=>[...c.children]); items.flat().forEach(t=>t.style.marginTop="");
+  const ht=items.map(a=>a.map(t=>t.offsetHeight));
+  for(;;){
+    let c=-1; for(let i=0;i<n;i++) if(p[i]<items[i].length&&(c<0||h[i]<h[c]-0.5)) c=i;
+    if(c<0)break;
+    const t=items[c][p[c]], th=ht[c][p[c]], wide=t.classList.contains("wide")&&c<n-1;
+    const y=wide?Math.max(h[c],h[c+1]):h[c];
+    if(y>flow[c]+0.5) t.style.marginTop=(y-flow[c])+"px";
+    flow[c]=h[c]=y+th+GAP; if(wide) h[c+1]=h[c];
+    p[c]++;
+  }
 }
 function currentCols(){
   const d=[...document.querySelectorAll("#main .mcol")].map(c=>[...c.children].map(x=>x.dataset.personCol).filter(x=>x!==undefined));
@@ -736,10 +775,23 @@ function currentCols(){
   if(layoutCols){const shown=new Set(d.flat());layoutCols.forEach((col,i)=>col.forEach(k=>{if(!shown.has(k)){shown.add(k);d[Math.min(i,d.length-1)].push(k)}}))}
   return d;
 }
+// The layout setting holds the columns and which tiles are 2 wide, so both sync to every device together.
+const layoutBody=()=>({cols:(layoutCols||[]).map(k=>({k})),wide:[...wideKeys]});
 async function saveLayout(cols){
   while(cols.length>1&&!cols[cols.length-1].length) cols.pop();
   layoutCols=cols; render();
-  if(layoutDoc) try{await layoutDoc.set({cols:cols.map(k=>({k}))})}catch(e){toast("Couldn't save the layout.")}
+  if(layoutDoc) try{await layoutDoc.set(layoutBody())}catch(e){toast("Couldn't save the layout.")}
+}
+function toggleWide(key){
+  const cols=currentCols();
+  if(wideKeys.has(key)) wideKeys.delete(key);
+  else{
+    wideKeys.add(key);
+    // starting in the last column would leave no room to grow, so move it one column left
+    const n=Math.max(packedCols,1), ci=cols.findIndex(c=>c.includes(key));
+    if(n>=2&&ci>=n-1){const idx=cols[ci].indexOf(key);cols[ci].splice(idx,1);while(cols.length<n-1)cols.push([]);cols[n-2].splice(Math.min(idx,cols[n-2].length),0,key)}
+  }
+  saveLayout(cols);
 }
 function placeTile(key,ci,beforeKey){
   const cols=currentCols().map(c=>c.filter(k=>k!==key));
@@ -819,6 +871,7 @@ document.addEventListener("click",e=>{
   if(el.closest("[data-newgroup]")){openGroup(null);return}
   const ge=el.closest("[data-editgroup]"); if(ge){openGroup(ge.dataset.editgroup);return}
   const sdb=el.closest("[data-send]"); if(sdb){openSend([sdb.dataset.send]);return}
+  const wb=el.closest("[data-wide]"); if(wb){toggleWide(wb.dataset.wide);return}
   const mv=el.closest("[data-mv]"); if(mv){nudgeTile(mv.dataset.pk,mv.dataset.mv);return}
   const st=el.closest("[data-stat]"); if(st){statFilter=statFilter===st.dataset.stat?null:st.dataset.stat;render();return}
   const pp=el.closest("#peoplebar [data-person], #main [data-person]"); if(pp){personFilter=personFilter===pp.dataset.person?null:pp.dataset.person;render();return}
@@ -883,6 +936,9 @@ function dropTarget(e){
   const tile=e.target.closest(".col[data-person-col]");
   if(tile&&tile.dataset.personCol!==colDrag){const r=tile.getBoundingClientRect();const before=e.clientY<r.top+r.height/2;return {mc,tile,before}}
   if(tile)return {mc,self:true};
+  // In a gap (for example the space kept clear under a wide tile): drop before the next tile further down, if any.
+  const below=[...mc.children].find(t=>t.dataset.personCol!==undefined&&t.dataset.personCol!==colDrag&&t.getBoundingClientRect().top>e.clientY);
+  if(below)return {mc,tile:below,before:true};
   return {mc,end:true};
 }
 document.addEventListener("dragstart",e=>{const g=e.target.closest&&e.target.closest("[data-grip]");if(!g)return;dragId=null;colDrag=g.dataset.grip;g.closest(".col").classList.add("lifting");e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain","tile")}catch(_){}});
@@ -1106,8 +1162,9 @@ $("#g-save").addEventListener("click",async()=>{
   groupDocs.set(id,{name,members:nk.split("+")});
   // keep the tile's place in the layout and move its items along with it
   if(oldKey&&oldKey!==nk){order=order.map(x=>x==="g:"+oldKey?"g:"+nk:x);if(layoutCols)layoutCols=layoutCols.map(c=>c.map(x=>x==="g:"+oldKey?"g:"+nk:x));
+    if(wideKeys.delete("g:"+oldKey)) wideKeys.add("g:"+nk);
     for(const t of [...tasks.values()]) if((t.people||[]).length>1&&mkey(t.people)===oldKey) await saveTask({...t,people:nk.split("+"),updated:now()});
-    if(layoutDoc&&layoutCols) try{await layoutDoc.set({cols:layoutCols.map(k=>({k}))})}catch(_){}}
+    if(layoutDoc&&(layoutCols||wideKeys.size)) try{await layoutDoc.set(layoutBody())}catch(_){}}
   render();
   if(groupsCol) try{await groupsCol.doc(id).set({name,members:nk.split("+")})}catch(e){toast("Couldn't save the group.")}
   toast("Saved "+name);
@@ -1286,7 +1343,7 @@ render();
   groupsCol=db.collection("groups");
   groupsCol.onSnapshot(s=>{groupDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed&&!ge)render()},()=>{});
   layoutDoc=db.doc("settings/layout");
-  layoutDoc.onSnapshot(d=>{const v=d.exists?d.data():{};if(Array.isArray(v.order))order=v.order.slice();if(Array.isArray(v.cols))layoutCols=v.cols.map(c=>Array.isArray(c&&c.k)?c.k.slice():[]);if(!ed&&!ge&&colDrag===null)render()},()=>{});
+  layoutDoc.onSnapshot(d=>{const v=d.exists?d.data():{};if(Array.isArray(v.order))order=v.order.slice();if(Array.isArray(v.cols))layoutCols=v.cols.map(c=>Array.isArray(c&&c.k)?c.k.slice():[]);wideKeys=new Set(Array.isArray(v.wide)?v.wide.map(String):[]);if(!ed&&!ge&&colDrag===null)render()},()=>{});
   peopleCol.onSnapshot(s=>{peopleDocs=new Map(s.docs.map(d=>[d.id,d.data()]));if(!ed)render()},()=>{});
 })();
 })();
