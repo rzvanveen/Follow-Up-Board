@@ -482,7 +482,9 @@ button.pchip{cursor:pointer}
     try{
       const batch=queue.slice(0,200);
       const j=await call({action:"ops"},{action:"ops",key:conn.key,ops:batch});
-      queue=queue.slice(batch.length); rev=j.rev; saveLocal(); setStatus(queue.length?"syncing":"ok");
+      const missed=j.rev!==rev+1; if(!missed) rev=j.rev; // another change came in between: keep old rev so we reload
+      queue=queue.slice(batch.length); saveLocal(); setStatus(queue.length?"syncing":"ok");
+      if(missed&&!queue.length) setTimeout(()=>pull(true),0);
     }catch(e){ setStatus(e.code==="offline"?"offline":"error",ERR[e.code]||("Sync problem: "+(e.code||"unknown"))) }
     flushing=false;
     if(flushAgain||queue.length){flushAgain=false;if(sync.state!=="offline"&&sync.state!=="error")setTimeout(flush,50)}
